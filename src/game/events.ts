@@ -2,7 +2,7 @@
  * Swarm events (Vampire Survivors map events): every 100 to 140 s, and never within 15 s of a boss spawn, one of three things happens
  * (seeded, own random stream so the run's other draws never shift). The mobs are added on top of the alive target and carry an `ev`
  * mark, so the spawner does not count them and the recycler leaves them alone:
- * - Bunny Stampede: a 30 to 50 strong column enters from one screen edge, marches straight across at 1.6x speed ignoring the hero, and
+ * - Imp Stampede: a 30 to 50 strong column enters from one screen edge, marches straight across at 1.6x speed ignoring the hero, and
  *   is removed (no loot, no kill) once past the far edge.
  * - Closing Ring: 40 mobs of the current top tier appear in a full ring at 18 yd around the hero and walk inward like any mob.
  * - Treasure Swarm: 12 fast Gilded Hogs run away from the hero for 20 s, then vanish; each drops 5x mesos, and every 4th one a field item.
@@ -53,7 +53,7 @@ export const TREASURE_FIELD_EVERY = 4;
 export const TREASURE_SPEED = 0.88;
 
 export const SWARM_BANNERS: Record<SwarmKind, string> = {
-  stampede: 'Bunny stampede!',
+  stampede: 'Imp stampede!',
   ring: 'You are surrounded!',
   treasure: 'Treasure Hogs! Catch them!',
 };
@@ -120,7 +120,7 @@ export function startSwarm(sim: Sim, kind: SwarmKind) {
   const lo = poolLo(sim.t);
   if (kind === 'stampede') {
     const n = STAMPEDE_MIN + rng.int(STAMPEDE_MAX - STAMPEDE_MIN + 1);
-    // Ash / Mud Bunnies while the ladder is low, else the current low tier
+    // Ash / Mud Imps while the ladder is low, else the current low tier
     const tier = lo < 8 ? (rng.next() < 0.5 ? 1 : 3) : lo;
     const dir = rng.int(4);
     const vx = dir === 0 ? 1 : dir === 1 ? -1 : 0, vy = dir === 2 ? 1 : dir === 3 ? -1 : 0;

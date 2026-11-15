@@ -86,8 +86,8 @@ html, body { background: var(--sb-night); }
 .create .create-win { outline: 3px solid var(--sb-gold2); border: 3px solid var(--sb-wood3); border-radius: 6px; }
 .create .create-lead { color: var(--sb-ink); }
 .create .create-namelabel { color: var(--sb-ink2); }
-.create .class-hero { width: 78px; height: 84px; margin: -8px auto -4px; background-repeat: no-repeat; background-size: 624px 2016px; background-position: 0 -84px; animation: class-hero-idle .8s steps(4) infinite; filter: drop-shadow(0 3px 0 rgba(60,40,20,.35)); }
-@keyframes class-hero-idle { from { background-position-x: 0; } to { background-position-x: -312px; } }
+.create .class-hero { width: 84px; height: 90px; margin: -10px auto -4px; background-repeat: no-repeat; background-size: 672px 2160px; background-position: 0 -90px; animation: class-hero-idle .8s steps(4) infinite; filter: drop-shadow(0 3px 0 rgba(60,40,20,.35)); }
+@keyframes class-hero-idle { from { background-position-x: 0; } to { background-position-x: -336px; } }
 @media (prefers-reduced-motion: reduce) { .create .class-hero { animation: none; } }
 .win .dpick-b { background: linear-gradient(#6b4b37, #4a3227); border: 2px solid var(--sb-wood3); border-radius: 4px; color: var(--sb-parch); font-family: var(--font); font-weight: 700; }
 .win .dpick-b.sel { background: linear-gradient(#f0904a, #c85a24); border-color: #5a2410; }

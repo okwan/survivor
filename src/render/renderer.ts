@@ -38,7 +38,7 @@ const MAX_DECOS = 420;
 const DECO_CELL = 8; // yards
 const SCALE = 1 / RES;
 /** baked (isometric) art shows a little larger than it was rendered at 1/RES */
-const BS = SCALE * 1.4;
+const BS = SCALE;
 /** the hero's feet stand this many px below the sim position (the hit circle is centred on the body) */
 const HERO_FOOT = 10;
 /** seconds the hero keeps facing the target of its last attack */
@@ -207,8 +207,8 @@ export class Renderer {
     this.world.addChild(this.glowFx, this.groundFx, this.entities, this.fxLayer, this.heroLayer, this.topLayer);
     // night: a dark wash with a pool of light around the hero (the camera keeps the hero at the screen centre)
     // moonlit: everything in the world takes a cool tint
-    this.world.tint = baked ? 0xdfe3f2 : 0xc4cbe6;
-    this.night = new Sprite(nightTexture());
+    this.world.tint = baked ? 0xffffff : 0xc4cbe6;
+    this.night = new Sprite(nightTexture(!!baked));
     this.night.anchor.set(0.5);
     app.stage.addChild(this.night);
 
@@ -331,7 +331,7 @@ export class Renderer {
   resize() {
     this.w = this.app.screen.width;
     this.h = this.app.screen.height;
-    this.zoom = Math.min(this.w, this.h) < 560 ? 0.8 : 1;
+    this.zoom = this.baked ? (Math.min(this.w, this.h) < 560 ? 1 : 1.45) : Math.min(this.w, this.h) < 560 ? 0.8 : 1;
     this.ground.width = this.w;
     this.ground.height = this.h;
     if (this.night) {
@@ -1226,7 +1226,7 @@ export class Renderer {
     for (let cy = Math.floor((sim.py - halfH) / C); cy <= Math.floor((sim.py + halfH) / C); cy++) {
       for (let cx = Math.floor((sim.px - halfW) / C); cx <= Math.floor((sim.px + halfW) / C); cx++) {
         const h = hash2(cx, cy);
-        if (h > 0.42) continue;
+        if (h > 0.36) continue;
         const gx = (cx + 0.1 + hash2(cx + 91, cy) * 0.8) * C * PX, gy = (cy + 0.1 + hash2(cx, cy + 57) * 0.8) * C * PX;
         // keep the start clear
         if (Math.abs(gx) < 5 * PX && Math.abs(gy) < 5 * PX) continue;
@@ -1249,7 +1249,7 @@ export class Renderer {
     for (let cy = Math.floor((sim.py - halfH) / T); cy <= Math.floor((sim.py + halfH) / T) && di < MAX_DECOS; cy++) {
       for (let cx = Math.floor((sim.px - halfW) / T); cx <= Math.floor((sim.px + halfW) / T) && di < MAX_DECOS; cx++) {
         const h = hash2(cx + 1000, cy - 1000);
-        if (h > 0.14) continue;
+        if (h > 0.035) continue;
         const gx = (cx + hash2(cx + 11, cy + 5)) * T * PX, gy = (cy + hash2(cx + 7, cy + 19)) * T * PX;
         const sp = place(pickTuft(hash2(cx - 3, cy + 41)), gx, gy, h < 0.07, 0.6);
         if (sp) sp.zIndex = gy - 40;
@@ -1285,16 +1285,22 @@ function mulTint(a: number, b: number): number {
 }
 
 /** The night overlay: clear around the centre, deepening to a blue-black at the edges (a vignette that doubles as the hero's light). */
-function nightTexture(): Texture {
+function nightTexture(soft = false): Texture {
   const S = 512;
   const [c, ctx] = canvas(S, S);
   const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
   g.addColorStop(0, 'rgba(255,200,120,0.10)');
   g.addColorStop(0.12, 'rgba(12,14,36,0)');
-  g.addColorStop(0.3, 'rgba(12,14,36,0.38)');
-  g.addColorStop(0.5, 'rgba(8,10,28,0.7)');
-  g.addColorStop(0.75, 'rgba(6,7,20,0.88)');
-  g.addColorStop(1, 'rgba(4,5,14,0.95)');
+  if (soft) {
+    g.addColorStop(0.35, 'rgba(12,14,36,0.12)');
+    g.addColorStop(0.6, 'rgba(8,10,28,0.38)');
+    g.addColorStop(1, 'rgba(4,5,14,0.7)');
+  } else {
+    g.addColorStop(0.3, 'rgba(12,14,36,0.38)');
+    g.addColorStop(0.5, 'rgba(8,10,28,0.7)');
+    g.addColorStop(0.75, 'rgba(6,7,20,0.88)');
+    g.addColorStop(1, 'rgba(4,5,14,0.95)');
+  }
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
   return Texture.from(c);

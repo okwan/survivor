@@ -17,11 +17,11 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 // storybook night: a warm key light, a cool sky fill and a blue rim from behind
-scene.add(new THREE.HemisphereLight(0xc8d8ff, 0x3a2c44, 1.5));
-const key = new THREE.DirectionalLight(0xffe0b0, 2.6);
+scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x4a3a50, 1.9));
+const key = new THREE.DirectionalLight(0xffe4c0, 3.0);
 key.position.set(-4, 10, 6);
 scene.add(key);
-const rim = new THREE.DirectionalLight(0x86a8ff, 1.6);
+const rim = new THREE.DirectionalLight(0x9ab8ff, 1.8);
 rim.position.set(6, 5, -8);
 scene.add(rim);
 
@@ -140,7 +140,7 @@ window.bakeChar = async (job) => {
           mixer.setTime(t);
         }
         renderer.render(scene, camera);
-        blitOutlined(ctx, f * w, row * h, w, h, job.outline ?? 2, 'rgba(18,12,28,0.92)');
+        blitOutlined(ctx, f * w, row * h, w, h, job.outline ?? 2, 'rgba(26,18,36,0.8)');
       }
       row++;
     }
@@ -181,7 +181,7 @@ window.bakeProps = async (job) => {
     renderer.render(scene, camera);
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
-    blitOutlined(c.getContext('2d'), 0, 0, w, h, job.outline ?? 2, 'rgba(18,12,28,0.92)');
+    blitOutlined(c.getContext('2d'), 0, 0, w, h, job.outline ?? 2, 'rgba(26,18,36,0.8)');
     shots.push({ id: it.id, c, w, h, ax: 0.5, ay: top / h });
     scene.remove(root);
   }

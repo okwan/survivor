@@ -100,44 +100,44 @@ export function bakedFrame(a: BakedAnim, dir: number, t: number): Texture {
 export interface MobLook { model: string; tint: number; size: number; glow?: number }
 const ML = (model: string, tint: number, size = 1, glow?: number): MobLook => ({ model, tint, size, glow });
 export const MOB_MODELS: MobLook[] = [
-  ML('bunny', 0xb8b4c8, 0.9),      // Gloom Chick
-  ML('chick', 0x9a9aa6, 0.9),      // Ash Bunny
-  ML('zombie', 0xffffff, 0.9),     // Shambler
-  ML('beaver', 0xa08070, 0.95),    // Mud Bunny
-  ML('skeleton', 0xffffff, 0.95),  // Bone Rattler
-  ML('zombie', 0x90d080, 1),       // Moss Shambler
-  ML('hog', 0xffffff, 1),          // Hog
-  ML('zombie', 0xff9a70, 1),       // Ember Shambler
-  ML('hog', 0xffd860, 1),          // Gilded Hog
-  ML('zombie', 0xc890ff, 1),       // Venom Shambler
-  ML('keeper', 0xffffff, 1),       // Grave Keeper
-  ML('crab', 0xc0a080, 1),         // Bramble Crab
-  ML('bandit', 0x9890a0, 1),       // Bandit
-  ML('skeleton', 0x9cc8ff, 1),     // Frost Bones
-  ML('bee', 0x9878c8, 1, 0x9070ff), // Dusk Bee
-  ML('orc', 0xffffff, 1.05),       // Raider
-  ML('orc', 0xff8070, 1.1),        // Berserker
-  ML('vampire', 0xc0a0e0, 1.05),   // Cultist
-  ML('polar', 0x6a6880, 1.3),      // Gloom Bear
-  ML('crab', 0x70a070, 1.35),      // Marsh Crab
-  ML('bee', 0xff6060, 1.05, 0xff4040), // Blood Bee
-  ML('lion', 0xff8a50, 1.35),      // Ember Lion
-  ML('ghost', 0x9cd8ff, 1, 0x60c0ff), // Wisp
-  ML('tiger', 0x707090, 1.4),      // Night Tiger
-  ML('witch', 0xc8a0ff, 1.05, 0xb070ff), // Hex Witch
-  ML('ghost', 0x9070c0, 1.1, 0x8040ff), // Wraith
-  ML('polar', 0xa0a0a8, 1.45),     // Stone Bear
-  ML('bee', 0x806048, 1.5),        // Hive Queen
-  ML('polar', 0x8090b0, 1.5),      // Iron Bear
-  ML('crab', 0x5050a0, 1.5, 0x4060ff), // Abyss Crab
+  ML('zombie', 0xa8a8c0, 0.8),        // Crawler
+  ML('skeleton', 0xc8b8b0, 0.75),     // Ash Imp
+  ML('zombie', 0xffffff, 0.9),        // Shambler
+  ML('skeleton', 0xc09870, 0.8),      // Mud Imp
+  ML('skeleton', 0xffffff, 0.95),     // Bone Rattler
+  ML('zombie', 0x9ad890, 0.95),       // Moss Shambler
+  ML('orc', 0xffffff, 1),             // Brute
+  ML('zombie', 0xffa080, 1),          // Ember Shambler
+  ML('orc', 0xffd870, 1),             // Gilded Brute
+  ML('zombie', 0xd0a0ff, 1),          // Venom Shambler
+  ML('keeper', 0xffffff, 1),          // Grave Keeper
+  ML('vampire', 0xa0c890, 1),         // Bramble Ghoul
+  ML('bandit', 0xa098a8, 1),          // Bandit
+  ML('skeleton', 0xa8d0ff, 1),        // Frost Bones
+  ML('ghost', 0xb8a0ff, 0.95, 0x9070ff), // Dusk Wisp
+  ML('orc', 0xd8d0c0, 1.05),          // Raider
+  ML('orc', 0xff8070, 1.1),           // Berserker
+  ML('vampire', 0xc8a8f0, 1.05),      // Cultist
+  ML('orc', 0x8a88a8, 1.35),          // Gloom Ogre
+  ML('zombie', 0x80b080, 1.35),       // Marsh Ghoul
+  ML('ghost', 0xff9090, 1, 0xff4040), // Blood Wisp
+  ML('orc', 0xff9060, 1.4),           // Ember Ogre
+  ML('ghost', 0xa8e0ff, 1, 0x60c0ff), // Wisp
+  ML('vampire', 0x8888a8, 1.35),      // Night Stalker
+  ML('witch', 0xd0b0ff, 1.05, 0xb070ff), // Hex Witch
+  ML('ghost', 0x9878c8, 1.1, 0x8040ff), // Wraith
+  ML('orc', 0xb0b0b8, 1.45),          // Stone Ogre
+  ML('skeleton', 0xe8e0d0, 1.5),      // Bone Colossus
+  ML('orc', 0x90a0c0, 1.5),           // Iron Ogre
+  ML('keeper', 0x7070c0, 1.5, 0x4060ff), // Abyss Knight
 ];
 export const BOSS_MODELS: MobLook[] = [
-  ML('keeper', 0xd0c0a0, 1.9),             // The Gravedigger
-  ML('bee', 0xffc040, 1.7, 0xffb030),      // Mother Hive
-  ML('skeleton', 0xe8e0c8, 2.1),           // Old Bonejaw
+  ML('keeper', 0xe0d0b0, 1.9),             // The Gravedigger
+  ML('zombie', 0xc0e0a0, 2.0, 0x80ff60),   // The Rotting King
+  ML('skeleton', 0xf0e8d0, 2.1),           // Old Bonejaw
   ML('vampire', 0xffffff, 2.1, 0xff3030),  // The Count
-  ML('witch', 0xb080ff, 2.1, 0xff9a40),    // The Lantern Witch
-  ML('ghost', 0x6050a0, 2.3, 0x7040ff),    // The Gloam
+  ML('witch', 0xc090ff, 2.1, 0xff9a40),    // The Lantern Witch
+  ML('ghost', 0x7060b0, 2.3, 0x7040ff),    // The Gloam
 ];
 export const HERO_MODELS: Record<string, string> = {
   warrior: 'hero-warrior', magician: 'hero-magician', bowman: 'hero-bowman', thief: 'hero-thief', pirate: 'hero-pirate',

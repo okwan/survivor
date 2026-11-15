@@ -42,22 +42,22 @@ export function groundTexture(): Texture {
   const [c, ctx] = canvas(S, S);
   const img = ctx.createImageData(S, S);
   const n1 = noise(4, 7), n2 = noise(8, 21), n3 = noise(16, 99), n4 = noise(32, 5), dirtN = noise(6, 333);
-  const grassA = [46, 74, 52], grassB = [64, 98, 60], moss = [38, 62, 58], dirt = [92, 74, 58];
+  const grassA = [58, 88, 62], grassB = [74, 106, 66], moss = [52, 80, 74], dirt = [104, 88, 70];
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const u = x / S, v = y / S;
       const big = n1(u * 4, v * 4) * 0.55 + n2(u * 8, v * 8) * 0.3 + n3(u * 16, v * 16) * 0.15;
       const fine = n4(u * 32, v * 32);
-      const d = dirtN(u * 6, v * 6) * 0.75 + n3(u * 16 + 3, v * 16 + 9) * 0.25;
+      const d = dirtN(u * 6, v * 6) * 0.85 + n2(u * 8 + 3, v * 8 + 9) * 0.15;
       let r = grassA[0] + (grassB[0] - grassA[0]) * big, g = grassA[1] + (grassB[1] - grassA[1]) * big, b = grassA[2] + (grassB[2] - grassA[2]) * big;
       // cool moss in the low spots
       const m = Math.max(0, 0.45 - big) * 1.6;
       r += (moss[0] - r) * m; g += (moss[1] - g) * m; b += (moss[2] - b) * m;
       // worn earth patches with a soft edge
-      const de = Math.min(1, Math.max(0, (d - 0.66) * 7));
+      const de = Math.min(1, Math.max(0, (d - 0.72) * 5)) * 0.85;
       r += (dirt[0] - r) * de; g += (dirt[1] - g) * de; b += (dirt[2] - b) * de;
       // a little grain
-      const k = 0.9 + fine * 0.2;
+      const k = 0.96 + fine * 0.08;
       const i = (y * S + x) * 4;
       img.data[i] = r * k; img.data[i + 1] = g * k; img.data[i + 2] = b * k; img.data[i + 3] = 255;
     }
@@ -67,14 +67,14 @@ export function groundTexture(): Texture {
   let s = 12345;
   const rnd = () => { s = (Math.imul(s, 1103515245) + 12345) | 0; return ((s >>> 0) % 100000) / 100000; };
   const wrap = (fn: (ox: number, oy: number) => void) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
-  for (let i = 0; i < 1100; i++) {
+  for (let i = 0; i < 420; i++) {
     const x = rnd() * S, y = rnd() * S, h = 5 + rnd() * 7, lean = (rnd() - 0.5) * 6;
     const light = rnd() < 0.5;
-    ctx.strokeStyle = light ? 'rgba(120,160,96,0.55)' : 'rgba(22,40,30,0.55)';
+    ctx.strokeStyle = light ? 'rgba(130,170,104,0.35)' : 'rgba(30,52,40,0.3)';
     ctx.lineWidth = 2;
     wrap((ox, oy) => { ctx.beginPath(); ctx.moveTo(x + ox, y + oy); ctx.lineTo(x + ox + lean, y + oy - h); ctx.stroke(); });
   }
-  const specks: [string, number, number][] = [['rgba(214,200,255,0.8)', 40, 2.2], ['rgba(255,214,120,0.8)', 30, 2], ['rgba(150,140,130,0.7)', 60, 2.6]];
+  const specks: [string, number, number][] = [['rgba(214,200,255,0.7)', 18, 2.2], ['rgba(255,214,120,0.7)', 14, 2], ['rgba(150,140,130,0.5)', 24, 2.6]];
   for (const [col, count, r] of specks) {
     ctx.fillStyle = col;
     for (let i = 0; i < count; i++) {
@@ -87,13 +87,12 @@ export function groundTexture(): Texture {
 
 /** big props by group: [weight, ids] */
 const GROUPS: [number, string[]][] = [
-  [34, ['pine', 'pine', 'pine-crooked', 'tree-pine-round', 'tree-pine-tall', 'tree-oak', 'tree-default', 'tree-fat', 'tree-detailed', 'pine-fall']],
-  [16, ['grave-round', 'grave-cross', 'grave-broken', 'grave-deco', 'cross-wood', 'grave-round']],
-  [14, ['bush', 'bush-large', 'bush', 'mushrooms-red', 'mushrooms-tan']],
-  [12, ['rocks', 'rocks-tall', 'rock-large', 'trunk', 'stump', 'log', 'debris']],
-  [8, ['pumpkin', 'pumpkin-carved', 'pumpkin-tall', 'urn']],
-  [8, ['lantern', 'lightpost', 'candles', 'fire-basket', 'campfire']],
-  [5, ['fence', 'iron-fence', 'crypt', 'barrel']],
+  [34, ['pine', 'pine-b', 'pine', 'pine-crooked', 'pine-b', 'pine-fall']],
+  [20, ['grave-round', 'grave-cross', 'grave-broken', 'grave-deco', 'cross-wood', 'grave-round']],
+  [14, ['rocks', 'rocks-tall', 'trunk', 'debris']],
+  [10, ['pumpkin', 'pumpkin-carved', 'pumpkin-tall', 'urn']],
+  [9, ['lantern', 'lightpost', 'candles', 'fire-basket']],
+  [7, ['fence', 'iron-fence', 'crypt', 'barrel']],
 ];
 const TOTAL = GROUPS.reduce((a, g) => a + g[0], 0);
 
@@ -107,7 +106,7 @@ export function pickProp(h1: number, h2: number): string {
   return 'pine';
 }
 
-const TUFTS = ['flower-purple', 'flower-red', 'mushroom', 'rock-small', 'flower-purple'];
+const TUFTS = ['candles', 'debris', 'pumpkin'];
 export function pickTuft(h: number): string {
   return TUFTS[Math.floor(h * TUFTS.length) % TUFTS.length];
 }
