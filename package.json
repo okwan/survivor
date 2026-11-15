@@ -11,6 +11,7 @@
     "test": "node --experimental-strip-types scripts/test-sim.ts && node --experimental-strip-types scripts/test-meta.ts && node --experimental-strip-types scripts/test-hyper.ts && node --experimental-strip-types scripts/test-gacha.ts && node --experimental-strip-types scripts/test-events.ts && node --experimental-strip-types scripts/test-mobs.ts && node --experimental-strip-types scripts/test-gear.ts && node --experimental-strip-types scripts/test-items.ts && node --experimental-strip-types scripts/test-decor.ts && node --experimental-strip-types scripts/test-sfx.ts && node --experimental-strip-types scripts/test-ui.ts && node --experimental-strip-types scripts/test-runsave.ts && node --experimental-strip-types scripts/test-meter.ts"
   },
   "dependencies": {
+    "@fontsource/pixelify-sans": "^5.3.0",
     "pixi.js": "^8.17.1"
   },
   "devDependencies": {

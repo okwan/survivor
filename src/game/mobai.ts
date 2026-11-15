@@ -1,7 +1,7 @@
 /**
  * Mob behaviours (MapleStory mobs do more than walk at you) and the boss ailment cast. Ladder tiers carry a `behave` (data.ts):
  * - ranged: walks in until 9 to 12 yd from the hero, stops, and every 2.5 to 3.5 s (jittered) shoots one slow projectile (8 to 10 yd/s) at the
- *   hero's position at that moment. It hurts on touch (mob damage x0.8) and expires after about 2 s. Curse Eyes and Wraiths shoot an ailment
+ *   hero's position at that moment. It hurts on touch (mob damage x0.8) and expires after about 2 s. Blood Bats and Wraiths shoot an ailment
  *   with it (25%, decided when the shot leaves, so it can be drawn tinted). At most MAX_SHOOTERS ranged mobs shoot at once; the others walk.
  * - charge: walks normally; 6 to 12 yd away it stands still for 0.6 s (a line shows where it will go), dashes straight along it at 3x speed for
  *   0.7 s, then rests for 3 s. A hero who steps aside is missed.
@@ -32,7 +32,7 @@ export const SHOT_FIRST_MAX = 1.4;
 export const SHOT_SPEED_MIN = 8;
 export const SHOT_SPEED_MAX = 10;
 export const SHOT_LIFE = 2;
-/** shot damage as a fraction of the mob's contact damage, shot radius in yd (the hero adds their own), chance a Curse Eye / Wraith shot carries its ailment */
+/** shot damage as a fraction of the mob's contact damage, shot radius in yd (the hero adds their own), chance a Blood Bat / Wraith shot carries its ailment */
 export const SHOT_DMG = 1.0;
 export const SHOT_RADIUS = 0.9;
 export const MOB_SHOT_AIL_CHANCE = 0.25;

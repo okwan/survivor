@@ -1,6 +1,6 @@
 /**
  * Ailments of the hero (MapleStory's mob skills: Seal, Darkness, Weakness, Curse, Poison). They come from boss ailment circles and from the
- * shots of Curse Eyes and Wraiths (src/game/mobai.ts), show as chips with a countdown on the HUD and as a short floating text, and never
+ * shots of Blood Bats and Wraiths (src/game/mobai.ts), show as chips with a countdown on the HUD and as a short floating text, and never
  * stack: applying one again refreshes its timer. A cleric's Heal, an Elixir (pickup or card) or an Apple cures them all; the Holy Symbol
  * passive halves their length. The sim reads `sim.ail` where an ailment changes a rule (skills, crits, speed, gems); Poison runs here.
  * Pure (no DOM).

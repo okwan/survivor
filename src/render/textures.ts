@@ -2,6 +2,7 @@ import { Texture } from 'pixi.js';
 import { BOSSES, LADDER, PASSIVES, SKILLS } from '../game/data.ts';
 import { AILMENTS } from '../game/ailments.ts';
 import { EVOLVED_SKILLS } from '../game/evolutions.ts';
+import type { Sprites } from './sprites.ts';
 
 /** Textures are drawn at RES x and displayed at 1/RES. */
 export const RES = 2;
@@ -14,6 +15,135 @@ export function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderin
 }
 const hsl = (h: number, s: number, l: number, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 const tex = (c: HTMLCanvasElement) => Texture.from(c);
+/** a texture of pixel art: sampled nearest so scaled pixels stay square */
+const pixTex = (c: HTMLCanvasElement) => {
+  const t = Texture.from(c);
+  t.source.scaleMode = 'nearest';
+  return t;
+};
+
+// ---- pixel sprites (Kenney Tiny Dungeon / Tiny Town, CC0) ----------------------------------------------------------
+
+/** A sprite and an optional colour wash (hue variants of one creature) and darkening. */
+interface Look { tile: string; tint?: string; amt?: number }
+const L = (tile: string, tint?: string, amt = 0.45): Look => ({ tile, tint, amt });
+
+/** one look per ladder tier (src/game/data.ts LADDER order) */
+const MOB_LOOKS: Look[] = [
+  L('td_0123'), L('td_0123', '#9aa3b5', 0.5), L('td_0108'), L('td_0123', '#8a3b2a', 0.4), L('td_0122'), L('td_0108', '#b9d24a', 0.5),
+  L('td_0124', '#8a5a3a', 0.4), L('td_0108', '#ff7a2a', 0.55), L('td_0124', '#ffd23a', 0.55), L('td_0108', '#5ad23a', 0.5),
+  L('td_0122', '#3a3550', 0.5), L('td_0110'), L('td_0086'), L('td_0108', '#4aa8ff', 0.55), L('td_0120'), L('td_0087'),
+  L('td_0087', '#d23a3a', 0.4), L('td_0111'), L('td_0109'), L('td_0110', '#4a8a3a', 0.5), L('td_0120', '#c8203a', 0.5),
+  L('td_0109', '#ff5a2a', 0.45), L('td_0121', '#5ac8ff', 0.5), L('td_0122', '#8a2a5a', 0.4), L('td_0111', '#9a4ad8', 0.5),
+  L('td_0121', '#c8d0ff', 0.3), L('td_0109', '#9aa0a8', 0.55), L('td_0122', '#2a1a3a', 0.55), L('td_0109', '#3a4050', 0.6),
+  L('td_0110', '#3a2a6a', 0.55),
+];
+/** one look per boss (BOSSES order) */
+const BOSS_LOOKS: Look[] = [
+  L('td_0123', '#ffd23a', 0.25), L('td_0108', '#3ad2a0', 0.3), L('td_0109', '#c87a4a', 0.25), L('td_0122', '#d2d2e8', 0.4),
+  L('td_0111', '#ff9a2a', 0.35), L('td_0121', '#2a2050', 0.55),
+];
+/** the hero's sprite per class key */
+const HERO_LOOKS: Record<string, Look> = {
+  warrior: L('td_0096'), magician: L('td_0084'), bowman: L('td_0112'), thief: L('td_0088'), pirate: L('td_0087', '#3a6ad2', 0.3),
+};
+
+/** The sprite washed with its tint at 1x (null when the sprite is not loaded). */
+function lookCanvas(sp: Sprites | undefined, look: Look): HTMLCanvasElement | null {
+  const img = sp?.get(look.tile);
+  if (!img) return null;
+  const [c, ctx] = canvas(img.width, img.height);
+  ctx.drawImage(img, 0, 0);
+  if (look.tint) {
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = look.amt ?? 0.45;
+    ctx.fillStyle = look.tint;
+    ctx.fillRect(0, 0, c.width, c.height);
+  }
+  return c;
+}
+
+/** Draws a 1x sprite canvas scaled by whole number k (nearest), its bottom-centre at (cx, by); dy lifts it (a hop frame). */
+function blit(ctx: CanvasRenderingContext2D, src: HTMLCanvasElement, k: number, cx: number, by: number, dy = 0) {
+  ctx.imageSmoothingEnabled = false;
+  const w = src.width * k, h = src.height * k;
+  ctx.drawImage(src, Math.round(cx - w / 2), Math.round(by - h - dy), w, h);
+}
+
+function shadow(ctx: CanvasRenderingContext2D, cx: number, y: number, rx: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(cx, y, rx, rx * 0.28, 0, 0, 7); ctx.fill();
+}
+
+/** A mob from a sprite: two frames (rest, and a one-pixel hop), feet near the bottom of the canvas like the drawn mobs. */
+function spriteMobTex(src: HTMLCanvasElement, size: number): MobTex {
+  const S = size * RES, k = Math.max(1, Math.floor((S * 0.9) / src.width));
+  const frames: Texture[] = [], flash: Texture[] = [];
+  for (let f = 0; f < 2; f++) {
+    const [c, ctx] = canvas(S, S);
+    shadow(ctx, S / 2, S * 0.88, S * 0.3);
+    blit(ctx, src, k, S / 2, S * 0.9, f ? k : 0);
+    frames.push(pixTex(c));
+    flash.push(pixTex(whiteSilhouette(c)));
+  }
+  return { frames, flash, size };
+}
+
+/** The hero: the class sprite at 7x (3.5x on screen), feet near the anchor (0.5, 0.9). */
+function spriteHero(src: HTMLCanvasElement): Texture {
+  const k = 7, W = src.width * k + 8, H = Math.round((src.height * k) / 0.92);
+  const [c, ctx] = canvas(W, H);
+  shadow(ctx, W / 2, H * 0.9, W * 0.3);
+  blit(ctx, src, k, W / 2, H * 0.92);
+  return pixTex(c);
+}
+
+/** Night meadow: grass tiles at 3x in a seamless 6 x 6 grid, washed toward a cool dusk blue. */
+function spriteGround(sp: Sprites): Texture | null {
+  const tiles = ['tt_0000', 'tt_0001', 'tt_0002'].map((t) => sp.get(t)).filter((x): x is HTMLImageElement => !!x);
+  if (!tiles.length) return null;
+  const k = 3, T = 16 * k, N = 6;
+  const [c, ctx] = canvas(T * N, T * N);
+  ctx.imageSmoothingEnabled = false;
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const r = rnd();
+    const img = tiles[Math.min(tiles.length - 1, r < 0.7 ? 0 : r < 0.92 ? 1 : 2)];
+    ctx.drawImage(img, x * T, y * T, T, T);
+  }
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = '#46527e';
+  ctx.fillRect(0, 0, c.width, c.height);
+  return pixTex(c);
+}
+
+/** Decor sprites at 4x with a shadow: trees first (the common ones), then bushes, mushrooms, stones and graves. */
+export const DECO_TILES = ['tt_0004', 'tt_0016', 'tt_0028', 'tt_0003', 'tt_0015', 'tt_0027', 'tt_0005', 'tt_0029', 'td_0064', 'td_0065'];
+function spriteDecos(sp: Sprites): Texture[] {
+  const out: Texture[] = [];
+  for (const t of DECO_TILES) {
+    const src = lookCanvas(sp, { tile: t });
+    if (!src) continue;
+    const k = ['tt_0029', 'tt_0005', 'td_0064', 'td_0065'].includes(t) ? 3 : 5;
+    const W = src.width * k * RES + 16, H = src.height * k * RES + 16;
+    const [c, ctx] = canvas(W, H);
+    shadow(ctx, W / 2, H - 14, W * 0.3);
+    blit(ctx, src, k * RES, W / 2, H - 12);
+    out.push(pixTex(c));
+  }
+  return out;
+}
+
+/** A pickup or prop sprite at whole scale k on its own canvas. */
+function spriteItem(sp: Sprites, tile: string, k: number): Texture | null {
+  const src = lookCanvas(sp, { tile });
+  if (!src) return null;
+  const [c, ctx] = canvas(src.width * k, src.height * k);
+  blit(ctx, src, k, c.width / 2, c.height);
+  return pixTex(c);
+}
+
 
 export type Shape = 'snail' | 'mushroom' | 'stump' | 'slime' | 'pig' | 'eye' | 'boar' | 'golem' | 'drake' | 'other';
 /** Placeholder shape chosen by mob name keyword. */
@@ -211,6 +341,8 @@ export interface Textures {
   mobs: MobTex[];
   bosses: MobTex[];
   player: Texture;
+  /** the hero by class key (missing: the drawn player) */
+  heroes: Record<string, Texture>;
   ground: Texture;
   decos: Texture[];
   gems: Texture[];
@@ -224,7 +356,7 @@ export interface Textures {
   /** field items (Apple, 2x EXP Coupon, Warrior Elixir, Ludibrium Clock, Powder Keg) and the breakable box: placeholder icons */
   field: Texture[];
   box: Texture;
-  /** projectiles of ranged mobs without extracted art: Lupin's banana and a purple orb for everyone else */
+  /** projectiles of ranged mobs without extracted art: Hex Witch's banana and a purple orb for everyone else */
   shots: { banana: Texture; orb: Texture };
   missiles: Record<string, Texture>;
   ring: Texture;
@@ -470,7 +602,7 @@ export function ailCanvas(id: number, S: number): HTMLCanvasElement {
   return c;
 }
 
-/** Shots of ranged mobs: a banana (Lupin) and a purple orb */
+/** Shots of ranged mobs: a banana (Hex Witch) and a purple orb */
 function drawShots(): { banana: Texture; orb: Texture } {
   const S = 24 * RES;
   let [c, ctx] = canvas(S, S);
@@ -577,9 +709,19 @@ function abbreviate(name: string): string {
   return (w.length > 1 ? w[0][0] + w[1][0] : name.slice(0, 2)).toUpperCase();
 }
 
-export function buildTextures(): Textures {
-  const mobs = LADDER.map((m, i) => mobTex(m.name, i, m.big ? BIG_SIZE : MOB_SIZE, false));
-  const bosses = BOSSES.map((b) => mobTex(b.name, 29, Math.round(1.6 * b.scale * 2 * 20 * 1.3), true));
+export function buildTextures(sp?: Sprites): Textures {
+  const mobTexOf = (look: Look | undefined, name: string, tier: number, size: number, boss: boolean) => {
+    const src = look ? lookCanvas(sp, look) : null;
+    return src ? spriteMobTex(src, size) : mobTex(name, tier, size, boss);
+  };
+  const mobs = LADDER.map((m, i) => mobTexOf(MOB_LOOKS[i], m.name, i, m.big ? BIG_SIZE : MOB_SIZE, false));
+  const bosses = BOSSES.map((b, i) => mobTexOf(BOSS_LOOKS[i], b.name, 29, Math.round(1.6 * b.scale * 2 * 20 * 1.3), true));
+  const heroes: Record<string, Texture> = {};
+  for (const [k, look] of Object.entries(HERO_LOOKS)) {
+    const src = lookCanvas(sp, look);
+    if (src) heroes[k] = spriteHero(src);
+  }
+  const decos = sp ? spriteDecos(sp) : [];
   const icons: Record<string, string> = {};
   [...SKILLS, ...EVOLVED_SKILLS].forEach((s, i) => { icons[s.key] = iconDataUrl(abbreviate(s.name), SKILL_COLORS[s.element], i); });
   PASSIVES.forEach((p, i) => { icons[p.key] = iconDataUrl(abbreviate(p.name), PASSIVE_COLOR, i + 3); });
@@ -593,17 +735,18 @@ export function buildTextures(): Textures {
   return {
     mobs, bosses,
     player: drawPlayer(),
-    ground: drawGround(),
-    decos: drawDecos(),
+    heroes,
+    ground: (sp && spriteGround(sp)) || drawGround(),
+    decos: decos.length ? decos : drawDecos(),
     gems: [drawGem(210, false), drawGem(125, false), drawGem(280, true), drawGem(45, true)],
-    potion: drawBottle('#e8383c', false),
-    elixir: drawBottle('#7fd8ff', true),
+    potion: (sp && spriteItem(sp, 'td_0115', 3)) || drawBottle('#e8383c', false),
+    elixir: (sp && spriteItem(sp, 'td_0116', 4)) || drawBottle('#7fd8ff', true),
     meso: drawMeso(false),
     bag: drawMeso(true),
     gacha: tex(gachaCanvas(34 * RES)),
     book: drawBook(),
     field: [0, 1, 2, 3, 4].map((i) => tex(fieldCanvas(i, 28 * RES))),
-    box: drawBox(),
+    box: (sp && spriteItem(sp, 'td_0089', 4)) || drawBox(),
     shots: drawShots(),
     missiles: drawMissiles(),
     ring: drawRing(),

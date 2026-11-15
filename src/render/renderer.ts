@@ -15,7 +15,8 @@ import type { Anim, GameArt, MobArt } from '../art/art.ts';
 import { DamageNumbers } from './damage.ts';
 import { DecorLayer } from './decor.ts';
 import { RegionScenery } from './regions.ts';
-import { RES, buildTextures } from './textures.ts';
+import { RES, buildTextures, canvas } from './textures.ts';
+import type { Sprites } from './sprites.ts';
 import type { MobTex, Textures } from './textures.ts';
 
 const PX = PX_PER_YD;
@@ -26,12 +27,12 @@ const MAX_ANIMFX = 60;
 const MAX_FIRES = 48;
 const MAX_SHOT_SPRITES = 64;
 const MAX_CHARGE_LINES = 32;
-/** ladder tier of Lupin: its shots are bananas */
-const LUPIN = LADDER.findIndex((d) => d.name === 'Lupin');
+/** ladder tier of Hex Witch: its shots are bananas */
+const LUPIN = LADDER.findIndex((d) => d.name === 'Hex Witch');
 /** mob sprites stand with their feet this many radii below the sim position (the hit circle sits on the body) */
 const FOOT = 0.7;
-const MAX_DECOS = 90;
-const DECO_CELL = 14; // yards
+const MAX_DECOS = 220;
+const DECO_CELL = 8; // yards
 const SCALE = 1 / RES;
 /** the hero's feet stand this many px below the sim position (the hit circle is centred on the body) */
 const HERO_FOOT = 10;
@@ -62,7 +63,7 @@ interface EnemyView {
   sp: Sprite; stamp: number; barBg: Sprite | null; barFg: Sprite | null; tex: MobTex | null; flashing: boolean;
   /** real-art state: current mob art, animation, time in it, remaining hit1 time */
   art: MobArt | null; act: Anim | null; t: number; hitT: number; flashPrev: boolean;
-  /** Elites: the name plate over the head ("Elite Orange Mushroom" and the affix) and the text it shows */
+  /** Elites: the name plate over the head ("Elite Ember Slime" and the affix) and the text it shows */
   title: Text | null; titleKey: string;
 }
 interface DmgNum { t: BitmapText; life: number; vy: number; active: boolean; max: number }
@@ -110,6 +111,8 @@ export class Renderer {
   private gearIcons: GearIcons | null = null;
   private orbitSp: Sprite[] = [];
   private decoSprites: Sprite[] = [];
+  /** the night overlay over the world (under the DOM UI) */
+  private night: Sprite;
   private enemyViews = new Map<Enemy, EnemyView>();
   private viewPool: EnemyView[] = [];
   private pickupViews = new Map<Pickup, { sp: Sprite; stamp: number; glow: Sprite | null }>();
@@ -156,10 +159,10 @@ export class Renderer {
   camX = 0;
   camY = 0;
 
-  constructor(app: Application, art: GameArt | null = null) {
+  constructor(app: Application, art: GameArt | null = null, sprites?: Sprites) {
     this.app = app;
     this.art = art;
-    this.tex = buildTextures();
+    this.tex = buildTextures(sprites);
     this.itemArt = art?.items ?? new ItemArt();
     if (art) Object.assign(this.tex.icons, art.icons);
     const tx = this.tex;
@@ -179,6 +182,12 @@ export class Renderer {
     }
     if (this.decor) this.world.addChild(this.decor.layer);
     this.world.addChild(this.glowFx, this.groundFx, this.entities, this.fxLayer, this.heroLayer, this.topLayer);
+    // night: a dark wash with a pool of light around the hero (the camera keeps the hero at the screen centre)
+    // moonlit: everything in the world takes a cool tint
+    this.world.tint = 0xc4cbe6;
+    this.night = new Sprite(nightTexture());
+    this.night.anchor.set(0.5);
+    app.stage.addChild(this.night);
 
     for (let i = 0; i < MAX_DECOS; i++) {
       const s = new Sprite(tx.decos[0]);
@@ -201,7 +210,7 @@ export class Renderer {
     this.petTag = new Container();
     this.petTag.visible = false;
     this.topLayer.addChild(this.petTag);
-    const petName = this.itemArt.pet?.name ?? 'Brown Kitty';
+    const petName = this.itemArt.pet?.name ?? 'Ember';
     const label = new Text({ text: petName, style: { fontFamily: 'Arial', fontSize: 11, fontWeight: 'bold', fill: 0xffffff } });
     label.anchor.set(0.5, 0);
     const plate = new Graphics();
@@ -291,6 +300,12 @@ export class Renderer {
     this.zoom = Math.min(this.w, this.h) < 560 ? 0.8 : 1;
     this.ground.width = this.w;
     this.ground.height = this.h;
+    if (this.night) {
+      this.night.position.set(this.w / 2, this.h / 2);
+      const d = Math.hypot(this.w, this.h) * 1.15;
+      this.night.width = d;
+      this.night.height = d;
+    }
   }
 
   /** Fewer effects: fewer, fainter cast effects, dimmer trail and rings near the hero. */
@@ -611,9 +626,10 @@ export class Renderer {
     for (let cy = cy0; cy <= cy1 && di < MAX_DECOS && !this.decor && !this.scenery; cy++) {
       for (let cx = cx0; cx <= cx1 && di < MAX_DECOS; cx++) {
         const h = hash2(cx, cy);
-        if (h > 0.42) continue;
+        if (h > 0.34) continue;
         const s = this.decoSprites[di++];
-        const kind = h < 0.26 ? 0 : h < 0.34 ? 2 : 1;
+        // low kinds (the trees) are the most common
+        const kind = Math.min(tx.decos.length - 1, Math.floor(Math.pow(hash2(cx + 7, cy + 3), 1.7) * tx.decos.length));
         s.texture = tx.decos[kind];
         const gx = (cx + 0.15 + hash2(cx + 91, cy) * 0.7) * DECO_CELL * PX, gy = (cy + 0.15 + hash2(cx, cy + 57) * 0.7) * DECO_CELL * PX;
         s.position.set(gx, gy);
@@ -627,7 +643,8 @@ export class Renderer {
     const ps = this.playerSp;
     if (this.atkFaceT > 0) this.atkFaceT -= dt;
     const face = this.atkFaceT > 0 ? this.atkFace : sim.facing;
-    if (ps.texture !== tx.player) ps.texture = tx.player;
+    const heroTex = tx.heroes[sim.cls.key] ?? tx.player;
+    if (ps.texture !== heroTex) ps.texture = heroTex;
     ps.anchor.set(0.5, 0.9);
     ps.position.set(sim.px * PX, sim.py * PX);
     const bob = sim.moving ? Math.abs(Math.sin(this.time * 12)) * 3 : Math.sin(this.time * 3) * 1;
@@ -846,7 +863,7 @@ export class Renderer {
       if (v.stamp !== stamp) { this.projViews.delete(k); v.sp.visible = false; this.projPool.push(v.sp); }
     }
 
-    // shots of ranged mobs: the mob's own ball frames when extracted, else a banana (Lupin) or a purple orb (tinted by the ailment it carries)
+    // shots of ranged mobs: the mob's own ball frames when extracted, else a banana (Hex Witch) or a purple orb (tinted by the ailment it carries)
     const shots = sim.mobs.shots;
     let si = 0;
     for (; si < shots.length && si < MAX_SHOT_SPRITES; si++) {
@@ -1018,7 +1035,7 @@ export class Renderer {
     if (v.title) v.title.visible = false;
   }
 
-  /** An Elite's name plate: "Elite Orange Mushroom" over its affix, in the affix's colour (the text changes only when the Elite does) */
+  /** An Elite's name plate: "Elite Ember Slime" over its affix, in the affix's colour (the text changes only when the Elite does) */
   private drawTitle(v: EnemyView, e: Enemy, y: number) {
     let t = v.title;
     if (!t) {
@@ -1072,4 +1089,20 @@ export class Renderer {
 
   /** Name of the boss def for HUD convenience. */
   bossName(i: number) { return BOSSES[i].name; }
+}
+
+/** The night overlay: clear around the centre, deepening to a blue-black at the edges (a vignette that doubles as the hero's light). */
+function nightTexture(): Texture {
+  const S = 512;
+  const [c, ctx] = canvas(S, S);
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(255,200,120,0.10)');
+  g.addColorStop(0.12, 'rgba(12,14,36,0)');
+  g.addColorStop(0.3, 'rgba(12,14,36,0.38)');
+  g.addColorStop(0.5, 'rgba(8,10,28,0.7)');
+  g.addColorStop(0.75, 'rgba(6,7,20,0.88)');
+  g.addColorStop(1, 'rgba(4,5,14,0.95)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  return Texture.from(c);
 }
