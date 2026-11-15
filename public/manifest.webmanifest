@@ -1,0 +1,13 @@
+{
+  "name": "Survivor (working title)",
+  "short_name": "Survivor",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1f2340",
+  "theme_color": "#1f2340",
+  "start_url": "./",
+  "scope": "./",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

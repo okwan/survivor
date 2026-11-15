@@ -1,0 +1,360 @@
+import { BOSS_TOTAL } from '../game/data.ts';
+import type { Sim } from '../game/sim.ts';
+import { evolutionHint } from '../game/evolutions.ts';
+import type { Card } from '../game/types.ts';
+import { fmtTime } from './hud.ts';
+import { compact } from '../game/meter.ts';
+import type { MeterRow } from '../game/meter.ts';
+import { BAR_COLORS, sourceInfo } from './meter.ts';
+import { canFullscreen, isTouch, toggleFullscreen } from './touch.ts';
+import type { CreateResult } from './create.ts';
+import { difficultyPicker } from './difficulty.ts';
+import { CLASS_BY_KEY, JOB_BY_CODE, unlockedJobs } from '../game/data.ts';
+import type { SaveData, StoredRun } from './save.ts';
+
+export interface ScreenHandlers {
+  /** opens character creation */
+  start(): void;
+  /** the map creator finished */
+  created?(r: CreateResult): void;
+  /** starts straight away with the last created character */
+  quick(): void;
+  /** renames the saved character */
+  rename?(name: string): void;
+  resume(): void;
+  /** resumes the saved run from the title screen */
+  continueRun(): void;
+  /** pause menu: writes the run save and returns to the title (mesos are banked when the resumed run ends) */
+  saveQuit(): void;
+  quit(): void;
+  retry(): void;
+  menu(): void;
+  pick(i: number): void;
+  reroll(): void;
+  banish(i: number): void;
+  volume(v: number): void;
+  /** opens the Monster Book */
+  book(): void;
+  /** opens the camp shop */
+  shop(): void;
+  /** the player picked a difficulty tier */
+  difficulty(i: number): void;
+  /** opens the Hyper Skills window */
+  hyper(): void;
+  pet(on: boolean): void;
+  /** fewer, fainter skill effects around the hero */
+  effects(reduced: boolean): void;
+  sfxVolume(v: number): void;
+  mute(m: boolean): void;
+}
+
+export interface Results {
+  won: boolean;
+  time: number;
+  level: number;
+  kills: number;
+  mesos: number;
+  bosses: number;
+  elites: number;
+  best: boolean;
+  /** the tier played, and the name of the tier this win unlocked (if any) */
+  difficulty?: number;
+  unlocked?: string;
+  /** damage dealt per source (Sim.meter), highest first */
+  damage: { rows: MeterRow[]; total: number; time: number };
+  /** Hyper SP earned this run for the hero's class (shown when above 0) */
+  hyperSp?: { name: string; sp: number };
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  e.className = cls;
+  if (html) e.innerHTML = html;
+  return e;
+}
+
+/** "Continue: Lv 34 Hunter, 7:12": level, deepest job reached and run time */
+export function continueLabel(r: StoredRun): string {
+  const cls = CLASS_BY_KEY[r.run.cls];
+  const jobs = unlockedJobs(cls, r.run.branch, r.run.level);
+  return `Continue: Lv ${r.run.level} ${JOB_BY_CODE[jobs[jobs.length - 1]]?.name ?? cls.name}, ${fmtTime(r.run.t)}`;
+}
+
+export class Screens {
+  private title: HTMLDivElement;
+  private pause: HTMLDivElement;
+  private levelup: HTMLDivElement;
+  private results: HTMLDivElement;
+  private cardsEl!: HTMLDivElement;
+  private rerollBtn!: HTMLButtonElement;
+  private luHead!: HTMLElement;
+  private offerRef: Card[] | null = null;
+  private offerSig = '';
+  private h: ScreenHandlers;
+  private icons: Record<string, string>;
+  private quickBtn!: HTMLButtonElement;
+  private continueBtn!: HTMLButtonElement;
+  private petEl!: HTMLInputElement;
+  private fxEl!: HTMLInputElement;
+  private bestEl!: HTMLElement;
+  private mesoEl!: HTMLElement;
+  private volEl!: HTMLInputElement;
+  private sfxVolEl!: HTMLInputElement;
+  private muteEl!: HTMLButtonElement;
+  private muted = false;
+  private titleExtra!: HTMLDivElement;
+  private diff = difficultyPicker((i) => this.h.difficulty(i));
+
+  constructor(parent: HTMLElement, h: ScreenHandlers, icons: Record<string, string>) {
+    this.h = h;
+    this.icons = icons;
+    this.title = this.buildTitle();
+    this.title.querySelector('.win-body')!.insertBefore(this.diff.el, this.title.querySelector('.btn.big'));
+    this.pause = this.buildPause();
+    this.levelup = this.buildLevelUp();
+    this.results = el('div', 'screen results hidden');
+    parent.append(this.title, this.pause, this.levelup, this.results);
+  }
+
+  private win(title: string, cls = ''): { root: HTMLDivElement; body: HTMLDivElement } {
+    const root = el('div', 'screen hidden');
+    const w = el('div', 'win ' + cls);
+    w.appendChild(el('div', 'win-head', title));
+    const body = el('div', 'win-body');
+    w.appendChild(body);
+    root.appendChild(w);
+    return { root, body };
+  }
+
+  private btn(text: string, cls: string, fn: () => void): HTMLButtonElement {
+    const b = el('button', 'btn ' + cls, text);
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  private buildTitle(): HTMLDivElement {
+    const { root, body } = this.win('Survivor (working title)', 'title-win');
+    body.appendChild(el('div', 'logo', '<b>SURVIVOR</b><br><span>working title</span>'));
+    body.appendChild(el('p', 'tagline', 'Survive 15 minutes. Slay the bosses. Collect the coins.'));
+    const stats = el('div', 'stats');
+    this.bestEl = el('span', '', '0:00');
+    this.mesoEl = el('span', '', '0');
+    stats.append(el('div', '', 'Best time: '), el('div', '', 'Banked coins: '));
+    stats.children[0].appendChild(this.bestEl);
+    stats.children[1].appendChild(this.mesoEl);
+    body.appendChild(stats);
+    this.titleExtra = el('div', 'title-extra');
+    body.appendChild(this.titleExtra);
+    this.continueBtn = this.btn('Continue', 'primary continue-run', () => this.h.continueRun());
+    this.continueBtn.classList.add('hidden');
+    body.appendChild(this.continueBtn);
+    this.quickBtn = this.btn('Quick start', 'quick-start', () => this.h.quick());
+    this.quickBtn.classList.add('hidden');
+    body.appendChild(this.quickBtn);
+    body.appendChild(this.btn('START', 'primary big', () => this.h.start()));
+    body.appendChild(this.btn('Bestiary', 'book-btn', () => this.h.book()));
+    body.appendChild(this.btn('Camp Shop', 'book-btn', () => this.h.shop()));
+    body.appendChild(this.btn('Talents', 'book-btn', () => this.h.hyper()));
+    const petOpt = el('label', 'pet-opt', '<input type="checkbox"> Pet (follows you and picks up coins and potions)');
+    this.petEl = petOpt.querySelector('input')!;
+    this.petEl.addEventListener('change', () => this.h.pet(this.petEl.checked));
+    body.appendChild(petOpt);
+    const fxOpt = el('label', 'pet-opt', '<input type="checkbox"> Fewer effects');
+    fxOpt.title = 'Fewer, fainter skill effects around your character';
+    this.fxEl = fxOpt.querySelector('input')!;
+    this.fxEl.addEventListener('change', () => this.h.effects(this.fxEl.checked));
+    body.appendChild(fxOpt);
+    const vol = el('label', 'volume', 'Volume ');
+    this.volEl = el('input', '');
+    this.volEl.type = 'range'; this.volEl.min = '0'; this.volEl.max = '1'; this.volEl.step = '0.05';
+    this.volEl.addEventListener('input', () => this.h.volume(parseFloat(this.volEl.value)));
+    vol.appendChild(this.volEl);
+    const sfxVol = el('label', 'volume', 'SFX ');
+    this.sfxVolEl = el('input', '');
+    this.sfxVolEl.type = 'range'; this.sfxVolEl.min = '0'; this.sfxVolEl.max = '1'; this.sfxVolEl.step = '0.05';
+    this.sfxVolEl.addEventListener('input', () => this.h.sfxVolume(parseFloat(this.sfxVolEl.value)));
+    sfxVol.appendChild(this.sfxVolEl);
+    this.muteEl = this.btn('Mute', 'mute', () => this.h.mute(!this.muted));
+    vol.appendChild(this.muteEl);
+    body.appendChild(vol);
+    body.appendChild(sfxVol);
+    if (isTouch() && canFullscreen()) body.appendChild(this.btn('Fullscreen', 'fs-btn', () => void toggleFullscreen()));
+    body.appendChild(el('p', 'hint', isTouch() ? 'Move: drag anywhere.<br>Skills fire automatically.' : 'Move: WASD / arrow keys, or drag on a touch screen.<br>Skills fire automatically. Pause: Esc or P.'));
+    return root;
+  }
+
+  private buildPause(): HTMLDivElement {
+    const { root, body } = this.win('Paused', 'small');
+    root.classList.add('pause');
+    body.append(this.btn('Resume', 'primary', () => this.h.resume()), this.btn('Save & Quit', '', () => this.h.saveQuit()), this.btn('Quit to menu', '', () => this.h.quit()));
+    return root;
+  }
+
+  private buildLevelUp(): HTMLDivElement {
+    const root = el('div', 'screen levelup hidden');
+    const w = el('div', 'win wide');
+    this.luHead = el('div', 'win-head', 'LEVEL UP!');
+    w.appendChild(this.luHead);
+    const body = el('div', 'win-body');
+    this.cardsEl = el('div', 'cards');
+    body.appendChild(this.cardsEl);
+    const row = el('div', 'lu-row');
+    this.rerollBtn = this.btn('Reroll', '', () => this.h.reroll());
+    row.appendChild(this.rerollBtn);
+    row.appendChild(el('span', 'hint', (isTouch() ? 'Tap a card to choose.' : 'Keys 1-3 to choose.') + ' Banish removes a card from this run.'));
+    body.appendChild(row);
+    w.appendChild(body);
+    root.appendChild(w);
+    window.addEventListener('keydown', (e) => {
+      if (this.levelup.classList.contains('hidden')) return;
+      const i = ['1', '2', '3'].indexOf(e.key);
+      if (i >= 0) this.h.pick(i);
+    });
+    return root;
+  }
+
+  /** An extra button on the title screen e.g. the Monster Book. */
+  addTitleButton(label: string, fn: () => void) {
+    this.titleExtra.appendChild(this.btn(label, '', fn));
+  }
+
+  /** 'title' while the title screen is up, else '' */
+  titleState(): string {
+    return this.title.classList.contains('hidden') ? '' : 'title';
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+    this.muteEl.textContent = m ? 'Unmute' : 'Mute';
+  }
+
+  /** `run`: the saved run in progress, if any (shows the Continue button) */
+  showTitle(save: SaveData, run: StoredRun | null = null) {
+    const label = run ? continueLabel(run) : null;
+    this.continueBtn.classList.toggle('hidden', !run);
+    if (label) this.continueBtn.textContent = label;
+    this.bestEl.textContent = save.bestTime > 0 ? fmtTime(save.bestTime) : '-';
+    this.mesoEl.textContent = String(save.mesos);
+    const ch = save.character;
+    this.quickBtn.classList.toggle('hidden', !ch);
+    if (ch) this.quickBtn.textContent = `Quick start: ${ch.name} the ${ch.cls[0].toUpperCase()}${ch.cls.slice(1)}`;
+    this.setDifficulty(save);
+    this.petEl.checked = save.settings.pet;
+    this.fxEl.checked = save.settings.effects === 'reduced';
+    this.volEl.value = String(save.settings.volume);
+    this.sfxVolEl.value = String(save.settings.sfxVolume);
+    this.setMuted(save.settings.muted);
+    this.hideAll();
+    this.title.classList.remove('hidden');
+  }
+
+  /** Redraws the difficulty picker from the save */
+  setDifficulty(save: SaveData) {
+    this.diff.set(save.settings.difficulty, save.cleared);
+  }
+
+  /** The banked mesos changed (the shop): the menu shows the new total. */
+  refresh(save: SaveData) {
+    this.mesoEl.textContent = String(save.mesos);
+  }
+
+  showPause(on: boolean) {
+    this.pause.classList.toggle('hidden', !on);
+  }
+
+  hideAll() {
+    for (const s of [this.title, this.pause, this.levelup, this.results]) s.classList.add('hidden');
+    this.offerRef = null;
+    this.offerSig = '';
+  }
+
+  /** Call every frame: shows/hides the card screen from sim state and rebuilds only when the offer changes. */
+  syncLevelUp(sim: Sim) {
+    const offer = sim.offer;
+    if (!offer || sim.over) {
+      if (this.offerRef) { this.levelup.classList.add('hidden'); this.offerRef = null; this.offerSig = ''; }
+      return;
+    }
+    const sig = offer.map((c) => c.key).join(',') + '|' + sim.rerolls + sim.banishes + '|' + sim.level;
+    if (offer === this.offerRef && sig === this.offerSig) return;
+    this.offerRef = offer;
+    this.offerSig = sig;
+    this.levelup.classList.remove('hidden');
+    const job = offer[0]?.kind === 'job';
+    this.luHead.innerHTML = `${job ? 'JOB ADVANCEMENT!' : 'LEVEL UP!'} <span class="lvpill">Lv ${sim.level}</span>`;
+    this.cardsEl.textContent = '';
+    offer.forEach((c, i) => {
+      const card = el('div', 'card ' + c.kind);
+      if (c.kind === 'job') {
+        const sig = (c.sig ?? []).map((s) => `<div class="sig"><img src="${this.icons[s.key] ?? ''}" alt=""><div><b>${s.name}</b><span>${s.desc}</span></div></div>`).join('');
+        card.innerHTML = `<div class="key">${i + 1}</div><h3>${c.name}</h3><p>${c.desc}</p>${sig}<div class="card-foot"><div class="kind">Job advancement</div></div>`;
+        card.addEventListener('click', () => this.h.pick(i));
+        this.cardsEl.appendChild(card);
+        return;
+      }
+      const hint = c.kind === 'skill' || c.kind === 'passive' ? evolutionHint(c.key) : null;
+      const tag = c.isNew ? '<span class="tag new">NEW</span>' : c.kind === 'skill' || c.kind === 'passive' ? `<span class="tag">Lv ${c.from} &gt; ${c.to}</span>` : c.kind === 'mastery' ? `<span class="tag">x${c.from} &gt; x${c.to}</span>` : '';
+      card.innerHTML = `<div class="key">${i + 1}</div><img src="${this.icons[c.icon ?? c.key] ?? ''}" alt=""><h3>${c.name}</h3>${tag}<p>${c.desc}</p>${hint ? `<p class="hint">${hint}</p>` : ''}`;
+      // the kind label and Banish sit in a footer pushed to the bottom, so every card of the row lines up
+      const foot = el('div', 'card-foot');
+      foot.appendChild(el('div', 'kind', c.kind === 'skill' ? 'Skill' : c.kind === 'passive' ? 'Passive' : c.kind === 'mastery' ? 'Mastery' : 'Bonus'));
+      card.appendChild(foot);
+      card.addEventListener('click', () => this.h.pick(i));
+      if (c.kind === 'skill' || c.kind === 'passive') {
+        const b = el('button', 'banish', `Banish (${sim.banishes})`);
+        b.disabled = sim.banishes <= 0;
+        b.addEventListener('click', (ev) => { ev.stopPropagation(); this.h.banish(i); });
+        foot.appendChild(b);
+      }
+      this.cardsEl.appendChild(card);
+    });
+    this.rerollBtn.textContent = `Reroll (${sim.rerolls})`;
+    this.rerollBtn.disabled = sim.rerolls <= 0 || job;
+  }
+
+  /** "Damage breakdown": a scrolling list with a row per damage source (icon, bar, total, share, DPS while owned, hits, crit rate) */
+  private breakdown(d: Results['damage']): HTMLElement {
+    const box = el('div', 'dmgbox');
+    box.appendChild(el('div', 'dmg-h', 'Damage breakdown'));
+    const list = el('div', 'dmg-list');
+    const top = d.rows[0].dmg;
+    d.rows.forEach((s, i) => {
+      const info = sourceInfo(s.key, this.icons);
+      const dps = s.dmg / Math.max(1, d.time - s.first);
+      const row = el('div', 'dmg-row');
+      row.title = `${info.name}: ${compact(dps)}/s while active, ${s.hits} hits, ${s.hits ? Math.round((s.crits / s.hits) * 100) : 0}% crit`;
+      row.innerHTML = `<i class="mt-bar" style="width:${Math.max(2, Math.round((s.dmg / top) * 100))}%;background:${BAR_COLORS[i % BAR_COLORS.length]}"></i>${info.icon ? `<img src="${info.icon}" alt="">` : '<img alt="" style="visibility:hidden">'}<span class="mt-nm">${info.name}</span><b>${compact(s.dmg)}</b><u>${d.total > 0 ? Math.round((s.dmg / d.total) * 100) : 0}%</u><em>${compact(dps)}/s</em><small>${s.hits} hits</small><small>${s.hits ? Math.round((s.crits / s.hits) * 100) : 0}% crit</small>`;
+      list.appendChild(row);
+    });
+    box.appendChild(list);
+    return box;
+  }
+
+  showResults(r: Results) {
+    this.hideAll();
+    this.results.innerHTML = '';
+    const w = el('div', 'win small resw');
+    w.appendChild(el('div', 'win-head ' + (r.won ? 'victory' : 'defeat'), r.won ? 'VICTORY!' : 'You Died'));
+    const b = el('div', 'win-body');
+    b.appendChild(el('p', 'tagline', r.won ? 'You survived the full 15 minutes!' : 'The monsters got you this time.'));
+    if (r.unlocked) b.appendChild(el('p', 'tagline', `<b>${r.unlocked} unlocked!</b>`));
+    b.appendChild(el('table', 'res', `
+      <tr><td>Time survived</td><td>${fmtTime(r.time)}${r.best ? ' <em>NEW BEST</em>' : ''}</td></tr>
+      <tr><td>Level</td><td>${r.level}</td></tr>
+      <tr><td>Monsters slain</td><td>${r.kills}</td></tr>
+      <tr><td>Bosses slain</td><td>${r.bosses} / ${BOSS_TOTAL}</td></tr>
+      <tr><td>Elites slain</td><td>${r.elites}</td></tr>
+      <tr><td>Coins earned</td><td>${r.mesos}</td></tr>
+      <tr><td>Total damage</td><td>${compact(r.damage.total)}</td></tr>
+      <tr><td>Average DPS</td><td>${compact(r.damage.total / Math.max(1, r.damage.time))}</td></tr>`));
+    if (r.hyperSp && r.hyperSp.sp > 0) b.appendChild(el('p', 'res-sp', `+${r.hyperSp.sp} talent points for ${r.hyperSp.name}`));
+    if (r.damage.rows.length) b.appendChild(this.breakdown(r.damage));
+    const row = el('div', 'btnrow res-btns');
+    row.append(this.btn('Retry', 'primary', () => this.h.retry()), this.btn('Menu', '', () => this.h.menu()),
+      this.btn('Camp Shop', 'res-shop', () => this.h.shop()), this.btn('Talents', 'res-hyper', () => this.h.hyper()));
+    b.appendChild(row);
+    w.appendChild(b);
+    this.results.appendChild(w);
+    this.results.classList.remove('hidden');
+  }
+}

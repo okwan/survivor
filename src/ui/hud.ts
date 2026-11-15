@@ -1,0 +1,332 @@
+import { EVOLUTION_PASSIVE_SLOTS } from '../game/evolutions.ts';
+import { BOSSES, DIFFICULTIES, BOSS_BARS, CLASS_BY_KEY, JOB_BY_CODE, MAX_PASSIVES, MAX_SKILLS, NOVA_CAST, PASSIVES, SKILL_BY_KEY, skillCooldown } from '../game/data.ts';
+import { AILMENTS } from '../game/ailments.ts';
+import { FIELD_ITEMS } from '../game/fieldItems.ts';
+import type { Sim } from '../game/sim.ts';
+import { Radar } from './radar.ts';
+import { statusScale } from './layout.ts';
+import { theme } from './theme.ts';
+import { canFullscreen, isPortrait, isTouch, toggleFullscreen } from './touch.ts';
+
+/** Status bar theme per class: the hue of the EXP / level plate (warrior red, magician blue, bowman green, thief purple, pirate orange). */
+export const JOB_HUE: Record<string, number> = { warrior: 355, magician: 215, bowman: 125, thief: 280, pirate: 35 };
+
+/** The window buttons of the status bar. */
+export type BarWindow = 'equip' | 'inventory' | 'stats';
+
+/** Glyphs of the top-right icon buttons (24x24, filled with currentColor). */
+const ICON = {
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="slash" d="M4 4l16 16" fill="none" stroke="#ff7a7a" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  meter: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="16" y="9" width="4" height="11" rx="1"/></svg>',
+  fx: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8z"/><path d="M18 14l.9 2.6 2.6.9-2.6.9L18 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>',
+  fullscreen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+export const fmtTime = (s: number) => {
+  const t = Math.max(0, Math.floor(s));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
+
+/** Timed field-item buffs shown under the kills pill: the field item and where its seconds left are kept (Sim.field) */
+const BUFFS: { item: number; left: (s: Sim) => number }[] = [
+  { item: 1, left: (s) => s.field.couponT },
+  { item: 2, left: (s) => s.field.elixirT },
+  { item: 3, left: (s) => s.field.clockT },
+];
+
+export class Hud {
+  readonly root: HTMLDivElement;
+  readonly radar: Radar;
+  readonly pauseBtn: HTMLButtonElement;
+  readonly muteBtn: HTMLButtonElement;
+  /** toggles the damage meter (MeterPanel adds the behaviour) */
+  readonly meterBtn: HTMLButtonElement;
+  readonly fxBtn: HTMLButtonElement;
+  readonly fsBtn: HTMLButtonElement | null = null;
+  /** the top-left column (kills, mesos, buffs): the damage meter hangs under it */
+  get topLeft(): HTMLElement { return this.el.tl; }
+  private rotate: HTMLElement | null = null;
+  private rotateDismissed = false;
+  private cache = new Map<HTMLElement, string>();
+  private el: Record<string, HTMLElement> = {};
+  private skillSlots: HTMLElement[] = [];
+  private passiveSlots: HTMLElement[] = [];
+  private icons: Record<string, string>;
+  private shown = true;
+  /** a status bar button (Equip / Item / Stat) was pressed */
+  onWindow: (w: BarWindow) => void = () => {};
+  private skillCd: HTMLElement[] = [];
+  private cls = '';
+
+  constructor(parent: HTMLElement, icons: Record<string, string>) {
+    this.icons = icons;
+    const r = (this.root = document.createElement('div'));
+    r.className = 'hud';
+    r.innerHTML = `
+      <div class="hud-tl" data-k="tl"><div class="pill"><b>KILLS</b> <span data-k="kills">0</span></div><div class="pill meso"><i class="coin"></i><span data-k="mesos">0</span></div>
+        <div class="buffs">${BUFFS.map((b, i) => `<div class="buff" data-k="buff${i}" title="${FIELD_ITEMS[b.item].name}"><img alt="" data-k="bufficon${i}"><b data-k="bufftime${i}"></b></div>`).join('')}
+          ${AILMENTS.map((a) => `<div class="buff ail" data-k="ail${a.id}" title="${a.name}: ${a.desc}" style="border-color:${a.color}"><img alt="" data-k="ailicon${a.id}"><b data-k="ailtime${a.id}"></b></div>`).join('')}</div></div>
+      <div class="vignette" data-k="vignette"></div>
+      <div class="hud-top">
+        <div class="clock" data-k="clock">0:00</div>
+        <div class="diff" data-k="diff"></div>
+        <div class="nextboss" data-k="next">NEXT BOSS 2:15</div>
+        <div class="bosspanel" data-k="bosspanel">
+          ${[0, 1, 2].map((i) => `<div class="bossrow" data-k="bossrow${i}">
+            <div class="bossname" data-k="bossname${i}"></div>
+            <div class="bar boss"><div class="fill" data-k="bossfill${i}"></div><span data-k="bosstext${i}"></span></div>
+          </div>`).join('')}
+          <div class="bar cast" data-k="castbar"><div class="fill" data-k="castfill"></div><span>Ground Slam</span></div>
+        </div>
+      </div>
+      <div class="hud-tr" data-k="tr"></div>
+      <div class="raid" data-k="raid"></div>
+      <div class="statusbar" data-k="sb" data-job="magician">
+        <div class="sb-inner">
+          <div class="sb-plate">
+            <div class="sb-jobicon"><img alt="" data-k="jobicon"></div>
+            <div class="lvbox"><small>LV.</small><b data-k="lv">1</b></div>
+            <div class="sb-names"><b data-k="job">Magician</b><span data-k="hname">Wanderer</span></div>
+          </div>
+          <div class="sb-gauges">
+            <div class="bar hp"><div class="fill" data-k="hpfill"></div><span data-k="hptext">120 / 120</span></div>
+            <div class="bar mp"><div class="fill" data-k="mpfill"></div><span data-k="mptext"></span></div>
+          </div>
+          <div class="sb-btns">
+            <button class="sbtn" data-w="equip" title="Equip (Q)"><i>Equip</i></button>
+            <button class="sbtn" data-w="inventory" title="Inventory (I)"><i>Item</i></button>
+            <button class="sbtn" data-w="stats" title="Stats (C)"><i>Stat</i></button>
+          </div>
+          <div class="sb-quick"><div class="slots" data-k="skills"></div><div class="slots passive" data-k="passives"></div></div>
+        </div>
+        <div class="bar exp"><div class="fill" data-k="expfill"></div><span data-k="exptext"></span></div>
+      </div>`;
+    parent.appendChild(r);
+    r.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k!] = e));
+    this.radar = new Radar(this.el.tr);
+    this.pauseBtn = document.createElement('button');
+    this.pauseBtn.className = 'pausebtn';
+    this.pauseBtn.innerHTML = ICON.pause;
+    this.pauseBtn.title = 'Pause (Esc)';
+    this.muteBtn = document.createElement('button');
+    this.muteBtn.className = 'pausebtn mutebtn';
+    this.muteBtn.innerHTML = ICON.mute;
+    this.muteBtn.title = 'Mute music';
+    this.meterBtn = document.createElement('button');
+    this.meterBtn.className = 'pausebtn meterbtn';
+    this.meterBtn.innerHTML = ICON.meter;
+    this.meterBtn.title = 'Damage meter (T)';
+    this.fxBtn = document.createElement('button');
+    this.fxBtn.className = 'pausebtn fxbtn';
+    this.fxBtn.innerHTML = ICON.fx;
+    this.fxBtn.title = 'Fewer effects (V)';
+    const btns = document.createElement('div');
+    btns.className = 'hud-btns';
+    btns.append(this.meterBtn, this.fxBtn, this.muteBtn, this.pauseBtn);
+    if (isTouch() && canFullscreen()) {
+      const fs = (this.fsBtn = document.createElement('button'));
+      fs.className = 'pausebtn fsbtn';
+      fs.innerHTML = ICON.fullscreen;
+      fs.title = 'Fullscreen';
+      fs.addEventListener('click', () => void toggleFullscreen());
+      btns.prepend(fs);
+    }
+    this.el.tr.appendChild(btns);
+    r.querySelectorAll<HTMLButtonElement>('.sbtn').forEach((b) => b.addEventListener('click', () => this.onWindow(b.dataset.w as BarWindow)));
+    const fit = () => document.documentElement.style.setProperty('--sbs', String(statusScale(window.innerWidth)));
+    fit();
+    window.addEventListener('resize', () => { fit(); this.syncRotate(); });
+    if (isTouch()) {
+      const rot = (this.rotate = document.createElement('div'));
+      rot.className = 'rotate-hint';
+      rot.style.display = 'none';
+      rot.innerHTML = '<span>Rotate your phone for the best view</span><button aria-label="Dismiss">x</button>';
+      rot.querySelector('button')!.addEventListener('click', () => { this.rotateDismissed = true; this.syncRotate(); });
+      r.appendChild(rot);
+    }
+    for (let i = 0; i < MAX_SKILLS; i++) { const sl = this.makeSlot(this.el.skills); this.skillSlots.push(sl); this.skillCd.push(sl.querySelector('.cd')!); }
+    for (let i = 0; i < MAX_PASSIVES + EVOLUTION_PASSIVE_SLOTS; i++) this.passiveSlots.push(this.makeSlot(this.el.passives));
+  }
+
+  private makeSlot(parent: HTMLElement): HTMLElement {
+    const s = document.createElement('div');
+    s.className = 'slot empty';
+    s.innerHTML = '<img alt=""><em></em><span class="cd"></span>';
+    parent.appendChild(s);
+    return s;
+  }
+
+  private text(el: HTMLElement, v: string) {
+    if (this.cache.get(el) !== v) { this.cache.set(el, v); el.textContent = v; }
+  }
+  private width(el: HTMLElement, pct: number) {
+    const v = pct.toFixed(1) + '%';
+    if (this.cache.get(el) !== v) { this.cache.set(el, v); el.style.width = v; }
+  }
+  /** like text() but for markup built from our own digit images; cached so the DOM is touched only on change */
+  private html(el: HTMLElement, v: string) {
+    if (this.cache.get(el) !== v) { this.cache.set(el, v); el.innerHTML = v; }
+  }
+  private disp(el: HTMLElement, show: boolean) {
+    const v = show ? 'b' : 'n';
+    if (this.cache.get(el) !== v) { this.cache.set(el, v); el.style.display = show ? '' : 'none'; }
+  }
+  private fillSlot(slot: HTMLElement, key: string | null, level: number) {
+    const k = key ? key + level : '';
+    if (this.cache.get(slot) === k) return;
+    this.cache.set(slot, k);
+    slot.classList.toggle('empty', !key);
+    const img = slot.firstElementChild as HTMLImageElement;
+    if (key) {
+      img.src = this.icons[key] ?? '';
+      slot.title = SKILL_BY_KEY[key]?.name ?? PASSIVES.find((p) => p.key === key)?.name ?? key;
+      slot.children[1].textContent = String(level);
+    } else {
+      img.removeAttribute('src');
+      slot.children[1].textContent = '';
+    }
+  }
+
+  private cdFill(el: HTMLElement | undefined, ready: number) {
+    if (!el) return;
+    const v = ready >= 0.999 ? '0%' : ((1 - ready) * 100).toFixed(0) + '%';
+    if (this.cache.get(el) !== v) { this.cache.set(el, v); el.style.height = v; }
+  }
+
+  /** The hero's name and class: tints the EXP bar and the level plate and sets the class icon. */
+  setHero(name: string, cls: string) {
+    this.text(this.el.hname, name);
+    this.setClass(cls);
+  }
+
+  private setClass(cls: string) {
+    if (cls === this.cls) return;
+    this.cls = cls;
+    const sb = this.el.sb;
+    sb.dataset.job = cls;
+    sb.style.setProperty('--job-hue', String(JOB_HUE[cls] ?? 215));
+    const def = CLASS_BY_KEY[cls];
+    const img = this.el.jobicon as HTMLImageElement;
+    const k = def?.skills[0];
+    if (k && this.icons[k]) img.src = this.icons[k];
+    else img.removeAttribute('src');
+    this.text(this.el.job, def?.name ?? cls);
+  }
+
+  setMuted(m: boolean) {
+    this.muteBtn.classList.toggle('off', m);
+    this.muteBtn.setAttribute('aria-pressed', String(m));
+    this.muteBtn.title = m ? 'Unmute music' : 'Mute music';
+  }
+
+  /** the Fewer effects button shows its state (pressed + dimmed = fewer effects) */
+  setReducedEffects(r: boolean) {
+    this.fxBtn.classList.toggle('off', r);
+    this.fxBtn.setAttribute('aria-pressed', String(r));
+  }
+
+  show(on: boolean) {
+    if (on !== this.shown) { this.shown = on; this.root.style.display = on ? '' : 'none'; }
+    this.syncRotate();
+  }
+
+  /** Portrait banner on touch devices during a run; once dismissed it stays away this session. */
+  private syncRotate() {
+    if (this.rotate) this.rotate.style.display = this.shown && !this.rotateDismissed && isPortrait() ? '' : 'none';
+  }
+
+  update(sim: Sim) {
+    this.text(this.el.kills, String(sim.kills));
+    this.text(this.el.mesos, String(sim.mesos));
+    this.text(this.el.clock, fmtTime(sim.t));
+    this.text(this.el.diff, sim.difficulty ? DIFFICULTIES[sim.difficulty].name.toUpperCase() : '');
+    const nb = sim.nextBossIn();
+    this.text(this.el.next, nb >= 0 ? `NEXT BOSS ${fmtTime(Math.ceil(nb))}` : `VICTORY IN ${fmtTime(Math.ceil(900 - sim.t))}`);
+    this.el.next.classList.toggle('soon', nb >= 0 && nb < 10);
+
+    const xp = sim.xp / sim.xpNeed;
+    this.setClass(sim.cls.key);
+    // MP shows how ready the active skills are (average of 1 - cooldown left / cooldown)
+    let ready = 0;
+    for (let i = 0; i < sim.skills.length; i++) {
+      const sk = sim.skills[i];
+      const def = SKILL_BY_KEY[sk.key];
+      const r = def ? 1 - Math.max(0, Math.min(1, sk.cd / (skillCooldown(def, sk.level, sim.haste) * (sim.hyper[sk.key]?.cd ?? 1)))) : 1;
+      ready += r;
+      this.cdFill(this.skillCd[i], r);
+    }
+    for (let i = sim.skills.length; i < MAX_SKILLS; i++) this.cdFill(this.skillCd[i], 1);
+    const mp = sim.skills.length ? ready / sim.skills.length : 1;
+    this.width(this.el.hpfill, (sim.hp / sim.maxHp) * 100);
+    this.width(this.el.mpfill, mp * 100);
+    this.width(this.el.expfill, xp * 100);
+    const job = JOB_BY_CODE[sim.jobs[sim.jobs.length - 1]]?.name ?? sim.cls.name;
+    this.text(this.el.job, job);
+    // gauge texts are plain text in both modes (HP never shown above its max); only the level plate uses the bitmap level digits
+    if (theme.active) this.html(this.el.lv, theme.lv(sim.level));
+    else this.text(this.el.lv, String(sim.level));
+    const maxHp = Math.round(sim.maxHp);
+    this.text(this.el.hptext, `HP ${Math.min(Math.ceil(sim.hp), maxHp)} / ${maxHp}`);
+    this.text(this.el.mptext, `MP ${Math.round(mp * 100)}%`);
+    this.text(this.el.exptext, `EXP ${Math.floor(sim.xp)} / ${Math.floor(sim.xpNeed)} (${(xp * 100).toFixed(2)}%)`);
+
+    for (let i = 0; i < MAX_SKILLS; i++) {
+      const s = sim.skills[i];
+      this.fillSlot(this.skillSlots[i], s ? s.key : null, s ? s.level : 0);
+    }
+    for (let i = 0; i < MAX_PASSIVES + EVOLUTION_PASSIVE_SLOTS; i++) {
+      const s = sim.passives[i];
+      this.fillSlot(this.passiveSlots[i], s ? s.key : null, s ? s.level : 0);
+    }
+
+    // one health bar per living boss (oldest first, at most BOSS_BARS); the ground-slam cast bar follows the first one that is casting
+    const bs = sim.activeBosses(BOSS_BARS);
+    this.disp(this.el.bosspanel, bs.length > 0);
+    let casting: (typeof bs)[number] | null = null;
+    for (let i = 0; i < BOSS_BARS; i++) {
+      const b = bs[i];
+      this.disp(this.el['bossrow' + i], !!b);
+      if (!b) continue;
+      this.text(this.el['bossname' + i], BOSSES[b.boss].name + (b.berserk ? '  (ENRAGED)' : ''));
+      this.width(this.el['bossfill' + i], (Math.max(0, b.hp) / b.maxHp) * 100);
+      this.text(this.el['bosstext' + i], `${Math.max(0, Math.ceil(b.hp))} / ${Math.ceil(b.maxHp)}`);
+      if (!casting && b.castT > 0) casting = b;
+    }
+    this.disp(this.el.castbar, !!casting);
+    if (casting) this.width(this.el.castfill, (1 - casting.castT / NOVA_CAST) * 100);
+
+    const raidOn = sim.raidUntil > sim.t && sim.raidText !== '' && !sim.over;
+    this.disp(this.el.raid, raidOn);
+    if (raidOn) this.text(this.el.raid, sim.raidText);
+
+    // active field-item buffs: small icon with the seconds left
+    for (let i = 0; i < BUFFS.length; i++) {
+      const left = BUFFS[i].left(sim);
+      const on = left > 0;
+      this.disp(this.el['buff' + i], on);
+      if (!on) continue;
+      const img = this.el['bufficon' + i] as HTMLImageElement;
+      const src = this.icons['field' + BUFFS[i].item] ?? '';
+      if (this.cache.get(img) !== src) { this.cache.set(img, src); img.src = src; }
+      this.text(this.el['bufftime' + i], String(Math.ceil(left)));
+      this.el['buff' + i].classList.toggle('low', left < 5);
+    }
+
+    // ailments: a chip with the seconds left each; Darkness also darkens the screen edges
+    for (const a of AILMENTS) {
+      const left = sim.ail.left[a.id];
+      const on = left > 0;
+      this.disp(this.el['ail' + a.id], on);
+      if (!on) continue;
+      const img = this.el['ailicon' + a.id] as HTMLImageElement;
+      const src = this.icons['ail' + a.id] ?? '';
+      if (this.cache.get(img) !== src) { this.cache.set(img, src); img.src = src; }
+      this.text(this.el['ailtime' + a.id], String(Math.ceil(left)));
+      this.el['ail' + a.id].classList.toggle('low', left < 1.5);
+    }
+    this.el.vignette.classList.toggle('on', sim.ail.dark);
+
+    this.radar.draw(sim);
+  }
+}
