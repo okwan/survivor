@@ -76,7 +76,7 @@ function bot(s: Sim, seconds: number, each?: () => void) {
   const N = 40000;
   for (let i = 0; i < N; i++) n[rollFieldItem(rng)]++;
   FIELD_ITEMS.forEach((d, i) => near(n[i] / N, d.weight / 100, 0.01, `${d.name} drops about ${d.weight}% of the time`));
-  eq(SWARM_BANNERS, { stampede: 'Rat stampede!', ring: 'You are surrounded!', treasure: 'Treasure Hogs! Catch them!' }, 'event banners');
+  eq(SWARM_BANNERS, { stampede: 'Bunny stampede!', ring: 'You are surrounded!', treasure: 'Treasure Hogs! Catch them!' }, 'event banners');
   near(eliteHpMult(0), 6, 1e-9, 'Elite HP x6 at the start'); near(eliteHpMult(1), 12, 1e-9, 'x12 at the end');
 }
 
@@ -122,9 +122,9 @@ function promoted(seed: number, tier: number, t: number, affix: number) {
   eq(s.elites.pending, false, 'the promotion is used up');
   eq(s.elites.spawned, 1, 'spawned counter');
   ok(s.t + ELITE_GAP_MIN - 1e-9 <= s.elites.nextAt && s.elites.nextAt <= s.t + ELITE_GAP_MAX + 1e-9, 'the next one is 50 to 70 s away');
-  eq(eliteTitle(e), 'Elite Ember Slime', 'title "Elite Ember Slime"');
+  eq(eliteTitle(e), 'Elite Ember Shambler', 'title "Elite Ember Shambler"');
   eq(evOf(s, 'elite').length, 1, 'an elite event');
-  eq(s.raidText, 'An Elite Ember Slime appears!', 'raid banner');
+  eq(s.raidText, 'An Elite Ember Shambler appears!', 'raid banner');
   ok(count(s, (x) => x.elite > 0) === 1, 'exactly one Elite alive');
 }
 {
@@ -323,13 +323,13 @@ for (const seed of [2, 6]) {
   startSwarm(s, 'stampede');
   const col = s.enemies.filter((e) => e.ev === EV_STAMPEDE);
   ok(col.length >= STAMPEDE_MIN && col.length <= STAMPEDE_MAX, `stampede of ${col.length} mobs (30 to 50)`);
-  eq(s.raidText, 'Rat stampede!', 'banner');
+  eq(s.raidText, 'Bunny stampede!', 'banner');
   ok(evOf(s, 'swarm').length === 1 && evOf(s, 'swarm')[0].kind === 'stampede', 'swarm event');
   const dir = { x: col[0].vx, y: col[0].vy };
   ok(Math.abs(dir.x) + Math.abs(dir.y) === 1 && col.every((e) => e.vx === dir.x && e.vy === dir.y), 'one fixed cardinal direction');
   ok(col.every((e) => e.add), 'marked as added on top of the target');
   const tiers = new Set(col.map((e) => e.tier));
-  ok([...tiers].every((t) => LADDER[t].name.includes('Rat')), `Rats (${[...tiers].map((t) => LADDER[t].name).join(', ')})`);
+  ok([...tiers].every((t) => LADDER[t].name.includes('Bunny')), `Bunnies (${[...tiers].map((t) => LADDER[t].name).join(', ')})`);
   {
     const late = quiet(14);
     late.t = 700;
@@ -341,7 +341,7 @@ for (const seed of [2, 6]) {
   const e0 = col[0], sp0 = e0.speed;
   const base = LADDER[e0.tier].speed;
   near(sp0, Math.min(base, 0.95 * s.cls.speed) * STAMPEDE_SPEED, 1.2, 'speed is 1.6x the mob\'s');
-  ok(sp0 > base, 'faster than a normal Cellar Rat');
+  ok(sp0 > base, 'faster than a normal Gloom Chick');
   // they cross the hero in a straight line, never turn, never get recycled, and are gone after the far edge
   const startAlong = (e: Enemy) => (e.x - s.px) * dir.x + (e.y - s.py) * dir.y;
   let back = 0, maxAlong = -99, off = 0;

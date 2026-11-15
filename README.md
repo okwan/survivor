@@ -52,6 +52,10 @@ Art and audio must be our own or carry a license that allows commercial use; rec
 - **Sprites:** Kenney's *Tiny Dungeon* and *Tiny Town* packs, by Kenney (www.kenney.nl), CC0 1.0 (public domain, commercial
   use allowed). Files in `public/sprites/`, license in `public/sprites/LICENSE.txt`. Taken from the
   `shorepine/kenney` mirror of the Kenney library.
+- **Isometric art:** heroes, monsters and props are pre-rendered from Kenney's 3D kits (*Graveyard Kit*, *Mini Dungeon*,
+  *Mini Characters*, *Cube Pets*, *Nature Kit*), CC0 1.0. The source models are in `tools/bake/models/` and
+  `npm run bake` renders them into `public/baked/` (8 directions, walk, idle and attack frames) with three.js in
+  headless Chromium. Change the camera, lights or outline in `tools/bake/bake.mjs` and re-bake.
 - **Font:** Pixelify Sans by Stefie Justprince, SIL Open Font License 1.1, via `@fontsource/pixelify-sans`.
 
 These are a strong starting point, not the final look: a Steam release should commission or buy a consistent,

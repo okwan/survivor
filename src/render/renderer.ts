@@ -17,6 +17,9 @@ import { DecorLayer } from './decor.ts';
 import { RegionScenery } from './regions.ts';
 import { RES, buildTextures, canvas } from './textures.ts';
 import type { Sprites } from './sprites.ts';
+import { BOSS_MODELS, HERO_MODELS, MOB_MODELS, bakedFrame, dirOf } from './baked.ts';
+import type { Baked, BakedAnim, BakedChar, MobLook } from './baked.ts';
+import { BAKED_LIGHTS, groundTexture, pickProp, pickTuft, shadowTexture } from './iso.ts';
 import type { MobTex, Textures } from './textures.ts';
 
 const PX = PX_PER_YD;
@@ -31,9 +34,11 @@ const MAX_CHARGE_LINES = 32;
 const LUPIN = LADDER.findIndex((d) => d.name === 'Hex Witch');
 /** mob sprites stand with their feet this many radii below the sim position (the hit circle sits on the body) */
 const FOOT = 0.7;
-const MAX_DECOS = 220;
+const MAX_DECOS = 420;
 const DECO_CELL = 8; // yards
 const SCALE = 1 / RES;
+/** baked (isometric) art shows a little larger than it was rendered at 1/RES */
+const BS = SCALE * 1.4;
 /** the hero's feet stand this many px below the sim position (the hit circle is centred on the body) */
 const HERO_FOOT = 10;
 /** seconds the hero keeps facing the target of its last attack */
@@ -63,8 +68,10 @@ interface EnemyView {
   sp: Sprite; stamp: number; barBg: Sprite | null; barFg: Sprite | null; tex: MobTex | null; flashing: boolean;
   /** real-art state: current mob art, animation, time in it, remaining hit1 time */
   art: MobArt | null; act: Anim | null; t: number; hitT: number; flashPrev: boolean;
-  /** Elites: the name plate over the head ("Elite Ember Slime" and the affix) and the text it shows */
+  /** Elites: the name plate over the head ("Elite Ember Shambler" and the affix) and the text it shows */
   title: Text | null; titleKey: string;
+  /** baked art: ground shadow, glow, last position (for the facing), facing, animation and its clock */
+  sh: Sprite | null; gl: Sprite | null; lx: number; ly: number; dir: number; bAnim: BakedAnim | null; bT: number;
 }
 interface DmgNum { t: BitmapText; life: number; vy: number; active: boolean; max: number }
 interface Vfx { sp: Sprite; active: boolean; t: number; dur: number; s0: number; s1: number; a0: number; a1: number; x: number; y: number; vy: number }
@@ -158,11 +165,27 @@ export class Renderer {
   private hurt = 0;
   camX = 0;
   camY = 0;
+  /** the isometric art baked from 3D models (null: the flat sprites) */
+  private baked: Baked | null;
+  private shadowTex: Texture;
+  private heroShadow: Sprite;
+  private heroDir = 2;
+  private heroAnim: BakedAnim | null = null;
+  private heroAnimT = 0;
+  private heroLX = NaN;
+  private heroLY = NaN;
+  /** the hero's swing: the angle toward the last attack target, and time left in the swing */
+  private atkAng = 0;
+  private swingT = 0;
+  private decoGlows: Sprite[] = [];
 
-  constructor(app: Application, art: GameArt | null = null, sprites?: Sprites) {
+  constructor(app: Application, art: GameArt | null = null, sprites?: Sprites, baked: Baked | null = null) {
     this.app = app;
     this.art = art;
+    this.baked = baked;
     this.tex = buildTextures(sprites);
+    if (baked) this.tex.ground = groundTexture();
+    this.shadowTex = shadowTexture();
     this.itemArt = art?.items ?? new ItemArt();
     if (art) Object.assign(this.tex.icons, art.icons);
     const tx = this.tex;
@@ -184,7 +207,7 @@ export class Renderer {
     this.world.addChild(this.glowFx, this.groundFx, this.entities, this.fxLayer, this.heroLayer, this.topLayer);
     // night: a dark wash with a pool of light around the hero (the camera keeps the hero at the screen centre)
     // moonlit: everything in the world takes a cool tint
-    this.world.tint = 0xc4cbe6;
+    this.world.tint = baked ? 0xdfe3f2 : 0xc4cbe6;
     this.night = new Sprite(nightTexture());
     this.night.anchor.set(0.5);
     app.stage.addChild(this.night);
@@ -195,9 +218,20 @@ export class Renderer {
       this.entities.addChild(s);
       this.decoSprites.push(s);
     }
+    this.heroShadow = new Sprite(this.shadowTex);
+    this.heroShadow.anchor.set(0.5);
+    this.heroShadow.visible = false;
+    this.glowFx.addChild(this.heroShadow);
+    for (let i = 0; i < 48; i++) {
+      const g = new Sprite(tx.glow);
+      g.anchor.set(0.5); g.blendMode = 'add'; g.visible = false;
+      this.fxLayer.addChild(g);
+      this.decoGlows.push(g);
+    }
     this.playerSp = new Sprite(tx.player);
     this.playerSp.anchor.set(0.5, 0.9);
-    this.heroLayer.addChild(this.playerSp);
+    // with the baked art the hero sorts with the trees and monsters by depth
+    (baked ? this.entities : this.heroLayer).addChild(this.playerSp);
     this.marker = new Sprite(tx.ring);
     this.marker.anchor.set(0.5); this.marker.tint = 0xfff0b8; this.marker.alpha = MARKER_ALPHA; this.marker.visible = false;
     this.marker.scale.set((MARKER_YD * PX) / tx.ring.width);
@@ -324,7 +358,7 @@ export class Renderer {
     const sp = new Sprite(this.tex.mobs[0].frames[0]);
     sp.anchor.set(0.5, 0.82);
     this.entities.addChild(sp);
-    return { sp, stamp: 0, barBg: null, barFg: null, tex: null, flashing: false, art: null, act: null, t: 0, hitT: 0, flashPrev: false, title: null, titleKey: '' };
+    return { sp, stamp: 0, barBg: null, barFg: null, tex: null, flashing: false, art: null, act: null, t: 0, hitT: 0, flashPrev: false, title: null, titleKey: '', sh: null, gl: null, lx: NaN, ly: NaN, dir: 2, bAnim: null, bT: 0 };
   }
 
   private releaseView(v: EnemyView) {
@@ -332,6 +366,9 @@ export class Renderer {
     v.art = null; v.act = null; v.tex = null; v.hitT = 0; v.flashPrev = false;
     if (v.barBg) { v.barBg.visible = false; v.barFg!.visible = false; }
     if (v.title) v.title.visible = false;
+    if (v.sh) v.sh.visible = false;
+    if (v.gl) v.gl.visible = false;
+    v.lx = NaN; v.bAnim = null;
     this.viewPool.push(v);
   }
 
@@ -440,7 +477,20 @@ export class Renderer {
         g.sp.zIndex = e.y * PX;
         g.sp.alpha = 0.9; g.sp.visible = true;
         g.active = true;
-        if (ma?.die) {
+        const dl = this.baked && !ma ? (e.boss >= 0 ? BOSS_MODELS[e.boss] : MOB_MODELS[e.tier]) : undefined;
+        const dm = dl ? this.baked!.chars[dl.model] : undefined;
+        if (dl && dm) {
+          // baked art: the mob's last pose flattens and fades
+          const a = dm.anims.walk ?? Object.values(dm.anims)[0];
+          g.anim = null;
+          g.sp.texture = (a.frames[e.facing >= 0 ? 1 : 3] ?? a.frames[0])[0];
+          g.sp.anchor.set(dm.ax, dm.ay);
+          g.sp.position.set(e.x * PX, e.y * PX + (e.boss >= 0 ? 1.6 : e.big ? 1 : 0.6) * PX * 0.35);
+          g.s = BS * dl.size;
+          g.sp.scale.set(g.s);
+          g.sp.tint = dl.tint;
+          g.t = e.boss >= 0 ? 0.8 : 0.32;
+        } else if (ma?.die) {
           // real art: play die1 once where the mob stood, native size, facing as it was
           const r = e.boss >= 0 ? 1.6 * BOSSES[e.boss].scale : e.big ? 1.0 : 0.6;
           g.anim = ma.die; g.age = 0;
@@ -466,6 +516,7 @@ export class Renderer {
       case 'attack': {
         // the hero turns toward what it attacks for a moment; the skill's cast effect plays on its feet, following it (art faces left)
         if (Math.abs(e.tx - e.x) > 0.05) { this.atkFace = Math.sign(e.tx - e.x); this.atkFaceT = ATK_FACE_TIME; }
+        if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) > 0.05) { this.atkAng = Math.atan2(e.ty - e.y, e.tx - e.x); this.swingT = 0.32; }
         const ef = this.art?.skills.get(e.skill)?.effect;
         const m = +this.reduced;
         if (ef && e.kind !== 'ground' && e.kind !== 'strike' && this.time - (this.heroFxAt.get(e.skill) ?? -9) >= HERO_FX_GAP[m]
@@ -623,7 +674,8 @@ export class Renderer {
     const cx0 = Math.floor((sim.px - halfW) / DECO_CELL), cx1 = Math.floor((sim.px + halfW) / DECO_CELL);
     const cy0 = Math.floor((sim.py - halfH) / DECO_CELL), cy1 = Math.floor((sim.py + halfH) / DECO_CELL);
     let di = 0;
-    for (let cy = cy0; cy <= cy1 && di < MAX_DECOS && !this.decor && !this.scenery; cy++) {
+    if (this.baked) di = this.bakedDecos(sim, z);
+    for (let cy = cy0; cy <= cy1 && di < MAX_DECOS && !this.decor && !this.scenery && !this.baked; cy++) {
       for (let cx = cx0; cx <= cx1 && di < MAX_DECOS; cx++) {
         const h = hash2(cx, cy);
         if (h > 0.34) continue;
@@ -643,17 +695,24 @@ export class Renderer {
     const ps = this.playerSp;
     if (this.atkFaceT > 0) this.atkFaceT -= dt;
     const face = this.atkFaceT > 0 ? this.atkFace : sim.facing;
-    const heroTex = tx.heroes[sim.cls.key] ?? tx.player;
-    if (ps.texture !== heroTex) ps.texture = heroTex;
-    ps.anchor.set(0.5, 0.9);
-    ps.position.set(sim.px * PX, sim.py * PX);
-    const bob = sim.moving ? Math.abs(Math.sin(this.time * 12)) * 3 : Math.sin(this.time * 3) * 1;
-    ps.y -= bob;
-    ps.scale.set(SCALE * (face >= 0 ? 1 : -1), SCALE);
+    const bh = this.baked?.chars[HERO_MODELS[sim.cls.key] ?? 'hero-warrior'];
+    if (bh) {
+      this.drawBakedHero(sim, bh, dt);
+    } else {
+      const heroTex = tx.heroes[sim.cls.key] ?? tx.player;
+      if (ps.texture !== heroTex) ps.texture = heroTex;
+      ps.anchor.set(0.5, 0.9);
+      ps.position.set(sim.px * PX, sim.py * PX);
+      const bob = sim.moving ? Math.abs(Math.sin(this.time * 12)) * 3 : Math.sin(this.time * 3) * 1;
+      ps.y -= bob;
+      ps.scale.set(SCALE * (face >= 0 ? 1 : -1), SCALE);
+    }
     ps.rotation = 0;
     if (this.hurt > 0) { this.hurt -= dt; ps.tint = 0xff8080; } else ps.tint = 0xffffff;
     ps.visible = !sim.over || sim.won;
     this.marker.visible = ps.visible;
+    this.heroShadow.visible = ps.visible && !!bh;
+    if (bh) { this.heroShadow.position.set(sim.px * PX, sim.py * PX); this.heroShadow.scale.set(0.6, 0.6); }
     this.marker.position.set(sim.px * PX, sim.py * PX + HERO_FOOT);
 
     this.renderPet(sim, dt);
@@ -686,7 +745,12 @@ export class Renderer {
       const ma = this.art ? (boss ? this.art.bosses[e.boss] : this.art.tiers[e.tier]) : null;
       let footY = e.y * PX;
       let barTop = e.r * PX * 1.9;
-      if (ma) {
+      const look = this.baked && !ma ? (boss ? BOSS_MODELS[e.boss] : MOB_MODELS[e.tier]) : undefined;
+      const bm = look ? this.baked!.chars[look.model] : undefined;
+      if (look && bm) {
+        footY += e.r * PX * 0.35;
+        barTop = this.drawBakedMob(v, e, bm, look, es, dt, footY);
+      } else if (ma) {
         // real art: native pixel size (the world container already applies the zoom), feet near the hit circle's lower edge
         footY += e.r * PX * FOOT;
         barTop = Math.max(e.r * PX * 1.2, this.animateMob(v, e, ma, dt) * es - e.r * PX * FOOT);
@@ -715,6 +779,7 @@ export class Renderer {
         l.alpha = 0.3 + 0.3 * Math.sin(this.time * 34);
       }
       sp.tint = e.behave === BEH_CHARGE && e.bS === CHARGE_TELEGRAPH ? 0xff9070 : e.elite ? AFFIXES[e.elite - 1].tint : e.ev === EV_TREASURE ? 0xffd23a : e.berserk ? 0xff6a6a : e.slowT > 0 ? 0xa8dcff : 0xffffff;
+      if (look && bm) sp.tint = e.flash > 0 ? 0xffffff : mulTint(sp.tint, look.tint);
       if (!boss && e.big && (e.elite || sim.t - e.lastHit < HP_BAR_SECONDS)) {
         // a bar over the head of big mobs for a few seconds after the last hit (small mobs die too fast to need one)
         this.ensureBar(v);
@@ -1023,11 +1088,14 @@ export class Renderer {
 
   /** A breakable box: the drawn crate, no bars */
   private drawBox(v: EnemyView, e: Enemy) {
-    const sp = v.sp, t = this.tex.box;
+    const chest = this.baked?.props.barrel;
+    const sp = v.sp, t = chest?.tex ?? this.tex.box;
     if (v.art) { v.art = null; v.act = null; v.tex = null; }
+    if (v.gl) v.gl.visible = false;
     if (sp.texture !== t) sp.texture = t;
-    sp.anchor.set(0.5, 0.75);
-    sp.scale.set(SCALE);
+    if (chest) sp.anchor.set(chest.ax, chest.ay); else sp.anchor.set(0.5, 0.75);
+    sp.scale.set(chest ? BS : SCALE);
+    if (v.sh) v.sh.visible = false;
     sp.position.set(e.x * PX, e.y * PX);
     sp.zIndex = e.y * PX;
     sp.tint = e.flash > 0 ? 0xffb0b0 : 0xffffff;
@@ -1035,7 +1103,7 @@ export class Renderer {
     if (v.title) v.title.visible = false;
   }
 
-  /** An Elite's name plate: "Elite Ember Slime" over its affix, in the affix's colour (the text changes only when the Elite does) */
+  /** An Elite's name plate: "Elite Ember Shambler" over its affix, in the affix's colour (the text changes only when the Elite does) */
   private drawTitle(v: EnemyView, e: Enemy, y: number) {
     let t = v.title;
     if (!t) {
@@ -1072,6 +1140,125 @@ export class Renderer {
     return a.ay[i] * t.frame.height;
   }
 
+  /** The hero from a baked sheet: swing toward the target, walk the way it moves, idle otherwise. */
+  private drawBakedHero(sim: Sim, bc: BakedChar, dt: number) {
+    const ps = this.playerSp;
+    const x = sim.px * PX, y = sim.py * PX;
+    if (!Number.isNaN(this.heroLX)) {
+      const dx = x - this.heroLX, dy = y - this.heroLY;
+      if (dx * dx + dy * dy > 0.04) this.heroDir = dirOf(dx, dy, bc.dirs);
+    }
+    this.heroLX = x; this.heroLY = y;
+    let a: BakedAnim | undefined;
+    let dir = this.heroDir;
+    if (this.swingT > 0 && bc.anims.attack) {
+      this.swingT -= dt;
+      a = bc.anims.attack;
+      dir = dirOf(Math.cos(this.atkAng), Math.sin(this.atkAng), bc.dirs);
+    } else a = sim.moving ? bc.anims.walk : bc.anims.idle ?? bc.anims.walk;
+    if (a !== this.heroAnim) { this.heroAnim = a ?? null; this.heroAnimT = 0; } else this.heroAnimT += dt;
+    if (!a) return;
+    const t = bakedFrame(a, dir, this.heroAnimT);
+    if (ps.texture !== t) ps.texture = t;
+    ps.anchor.set(bc.ax, bc.ay);
+    ps.position.set(x, y + 4);
+    ps.scale.set(BS);
+    ps.zIndex = y + 1;
+  }
+
+  /** A monster from a baked sheet; returns how far its head is above the foot (for the bars). */
+  private drawBakedMob(v: EnemyView, e: Enemy, bc: BakedChar, look: MobLook, es: number, dt: number, footY: number): number {
+    const sp = v.sp;
+    if (v.art || v.tex) { v.art = null; v.act = null; v.tex = null; }
+    const x = e.x * PX, y = e.y * PX;
+    if (!Number.isNaN(v.lx)) {
+      const dx = x - v.lx, dy = y - v.ly;
+      if (dx * dx + dy * dy > 0.01) v.dir = dirOf(dx, dy, bc.dirs);
+    } else v.dir = dirOf(this.heroX * PX - x, this.heroY * PX - y, bc.dirs);
+    v.lx = x; v.ly = y;
+    const atk = (e.castT > 0 || e.atk > 0 || e.ailC > 0 || (e.behave === BEH_CHARGE && e.bS === CHARGE_TELEGRAPH)) && bc.anims.attack;
+    const a = (atk ? bc.anims.attack : bc.anims.walk) ?? Object.values(bc.anims)[0];
+    if (a !== v.bAnim) { v.bAnim = a; v.bT = atk ? 0 : e.phase; } else v.bT += dt;
+    const t = bakedFrame(a, v.dir, v.bT);
+    if (sp.texture !== t) sp.texture = t;
+    sp.anchor.set(bc.ax, bc.ay);
+    const k = BS * look.size * es * (e.flash > 0 ? 1.08 : 1);
+    sp.scale.set(k);
+    // a soft shadow on the ground, and a glow for the spirits
+    let sh = v.sh;
+    if (!sh) { sh = v.sh = new Sprite(this.shadowTex); sh.anchor.set(0.5); this.glowFx.addChild(sh); }
+    sh.visible = true;
+    sh.position.set(x, footY);
+    sh.scale.set(0.5 * look.size * es);
+    sh.alpha = e.fly ? 0.5 : 0.85;
+    if (look.glow !== undefined) {
+      let gl = v.gl;
+      if (!gl) { gl = v.gl = new Sprite(this.tex.glow); gl.anchor.set(0.5); gl.blendMode = 'add'; this.fxLayer.addChild(gl); }
+      gl.visible = true;
+      gl.tint = look.glow;
+      gl.position.set(x, footY - 25 * look.size);
+      gl.scale.set(1.5 * look.size * es);
+      gl.alpha = 0.35 + 0.1 * Math.sin(this.time * 4 + e.phase * 6);
+    } else if (v.gl) v.gl.visible = false;
+    return t.frame.height * bc.ay * k * 0.8;
+  }
+
+  /** Props baked from 3D models on a hashed grid: woods, graveyards and lanterns, plus tufts of grass and flowers. */
+  private bakedDecos(sim: Sim, z: number): number {
+    const props = this.baked!.props;
+    const halfW = this.w / 2 / z / PX + 5, halfH = this.h / 2 / z / PX + 7;
+    let di = 0, gi = 0;
+    const place = (id: string, gx: number, gy: number, flip: boolean, s = 1): Sprite | null => {
+      const p = props[id];
+      if (!p || di >= MAX_DECOS) return null;
+      const sp = this.decoSprites[di++];
+      if (sp.texture !== p.tex) sp.texture = p.tex;
+      sp.anchor.set(p.ax, p.ay);
+      sp.scale.set(BS * s * (flip ? -1 : 1), BS * s);
+      sp.position.set(gx, gy);
+      sp.zIndex = gy;
+      sp.tint = 0xffffff;
+      sp.visible = true;
+      return sp;
+    };
+    // big props: 6-yard cells
+    const C = 7;
+    for (let cy = Math.floor((sim.py - halfH) / C); cy <= Math.floor((sim.py + halfH) / C); cy++) {
+      for (let cx = Math.floor((sim.px - halfW) / C); cx <= Math.floor((sim.px + halfW) / C); cx++) {
+        const h = hash2(cx, cy);
+        if (h > 0.42) continue;
+        const gx = (cx + 0.1 + hash2(cx + 91, cy) * 0.8) * C * PX, gy = (cy + 0.1 + hash2(cx, cy + 57) * 0.8) * C * PX;
+        // keep the start clear
+        if (Math.abs(gx) < 5 * PX && Math.abs(gy) < 5 * PX) continue;
+        const id = pickProp(hash2(cx + 13, cy + 29), hash2(cx + 5, cy + 71));
+        place(id, gx, gy, hash2(cx + 3, cy + 3) < 0.5);
+        const light = BAKED_LIGHTS[id];
+        if (light && gi < this.decoGlows.length) {
+          const g = this.decoGlows[gi++];
+          g.visible = true;
+          g.tint = light[0];
+          g.position.set(gx, gy - light[1] * 1.4);
+          const flick = 1 + 0.06 * Math.sin(this.time * 9 + cx * 3.1) + 0.04 * Math.sin(this.time * 23 + cy);
+          g.scale.set(light[2] * flick);
+          g.alpha = 0.55;
+        }
+      }
+    }
+    // tufts: 2.5-yard cells, small and low so they never hide anything
+    const T = 2.5;
+    for (let cy = Math.floor((sim.py - halfH) / T); cy <= Math.floor((sim.py + halfH) / T) && di < MAX_DECOS; cy++) {
+      for (let cx = Math.floor((sim.px - halfW) / T); cx <= Math.floor((sim.px + halfW) / T) && di < MAX_DECOS; cx++) {
+        const h = hash2(cx + 1000, cy - 1000);
+        if (h > 0.14) continue;
+        const gx = (cx + hash2(cx + 11, cy + 5)) * T * PX, gy = (cy + hash2(cx + 7, cy + 19)) * T * PX;
+        const sp = place(pickTuft(hash2(cx - 3, cy + 41)), gx, gy, h < 0.07, 0.6);
+        if (sp) sp.zIndex = gy - 40;
+      }
+    }
+    for (; gi < this.decoGlows.length; gi++) this.decoGlows[gi].visible = false;
+    return di;
+  }
+
   private glowSprite(): Sprite {
     const sp = new Sprite(this.tex.glow);
     sp.anchor.set(0.5);
@@ -1089,6 +1276,12 @@ export class Renderer {
 
   /** Name of the boss def for HUD convenience. */
   bossName(i: number) { return BOSSES[i].name; }
+}
+
+/** multiplies two 0xRRGGBB tints */
+function mulTint(a: number, b: number): number {
+  const r = (((a >> 16) & 255) * ((b >> 16) & 255)) / 255, g = (((a >> 8) & 255) * ((b >> 8) & 255)) / 255, bl = ((a & 255) * (b & 255)) / 255;
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
 }
 
 /** The night overlay: clear around the centre, deepening to a blue-black at the edges (a vignette that doubles as the hero's light). */
