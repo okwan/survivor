@@ -64,7 +64,7 @@ export class Radar {
       if (e.boss >= 0 || e.elite) continue;
       const x = h + (e.x - px) * k, y = h + (e.y - py) * k;
       if (x < 0 || y < 0 || x > SIZE || y > SIZE) continue;
-      // breakable boxes brown, Treasure Pigs gold, everything else red
+      // breakable boxes brown, Treasure Hogs gold, everything else red
       if (e.ev === EV_BOX || e.ev === EV_TREASURE) {
         c.fillStyle = e.ev === EV_BOX ? '#c8924a' : '#ffd23a';
         c.fillRect(x - 1.5, y - 1.5, 3.2, 3.2);

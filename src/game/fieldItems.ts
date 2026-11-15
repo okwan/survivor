@@ -1,5 +1,5 @@
 /**
- * Field items (from Vampire Survivors floor pickups): breakable Maple boxes and the five items they, Elites and Treasure Pigs drop.
+ * Field items (from Vampire Survivors floor pickups): breakable Maple boxes and the five items they, Elites and Treasure Hogs drop.
  * A box is an Enemy with `ev = EV_BOX` (1 HP, never moves or attacks, no gem), so every skill that can hit a mob can break it; it drops one
  * field item. A field item is a FIELD pickup (value = item index): it works on touch only (the magnet and the pet leave it alone).
  * Timed buffs live in `sim.field`. Drop rolls and box placement have their own seeded stream so they never shift the run's other random

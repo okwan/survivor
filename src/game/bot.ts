@@ -13,7 +13,7 @@ export function botInput(sim: Sim, spin = 1): { x: number; y: number } {
   const es = sim.enemies;
   for (let i = 0; i < es.length; i++) {
     const e = es[i];
-    // boxes never attack and Treasure Pigs only run: neither is something to flee from
+    // boxes never attack and Treasure Hogs only run: neither is something to flee from
     if (!e.alive || e.ev === EV_BOX || e.ev === EV_TREASURE) continue;
     const dx = px - e.x, dy = py - e.y;
     const reach = e.boss >= 0 ? sim.cls.botReach + 4.5 : sim.cls.botReach;
@@ -55,7 +55,7 @@ export function botInput(sim: Sim, spin = 1): { x: number; y: number } {
     const side = rx * -s.vy + ry * s.vx >= 0 ? 1 : -1, inv = 1 / Math.sqrt(v2);
     sx += -s.vy * inv * side; sy += s.vx * inv * side;
   }
-  // quiet enough to detour for a box or a Treasure Pig
+  // quiet enough to detour for a box or a Treasure Hog
   const calm = fx * fx + fy * fy < 0.04;
   let best = 1e9, gx = 0, gy = 0;
   const ps = sim.pickups;
@@ -70,7 +70,7 @@ export function botInput(sim: Sim, spin = 1): { x: number; y: number } {
       if (score < best && d2 < (rare ? 900 : 144)) { best = score; gx = dx; gy = dy; }
     }
   }
-  // field items sit where the hero can reach them; breakable boxes (within 45 yd) and fleeing Treasure Pigs (within 20 yd) are worth a walk when calm
+  // field items sit where the hero can reach them; breakable boxes (within 45 yd) and fleeing Treasure Hogs (within 20 yd) are worth a walk when calm
   if (calm) {
     for (let i = 0; i < es.length; i++) {
       const e = es[i];

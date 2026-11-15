@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types scripts/balance-meta.ts [seeds=12] [classes=all]
 // Henesys shop balance: the kiting bot (always takes card 0, like balance-probe.ts) plays each class over several seeds with an empty shop and with
-// every rank bought. Prints win rate, damage taken, time survived, the time to kill Zakum (from its spawn at 13:30), the mesos a run banks, and what
+// every rank bought. Prints win rate, damage taken, time survived, the time to kill The Gloam (from its spawn at 13:30), the mesos a run banks, and what
 // the whole shop costs in runs. Informational (no asserts).
 import { botInput } from '../src/game/bot.ts';
 import { BOSSES, CLASSES } from '../src/game/data.ts';
@@ -39,7 +39,7 @@ const classes = CLASSES.filter((c) => !only || c.key === only);
 const none = emptyMeta();
 let mesosNone = 0, mesosFull = 0, n = 0;
 console.log(`Shop total: ${metaTotalCost()} mesos. ${seeds} seeds per class; "empty" vs "full" shop.`);
-console.log('class      shop   wins   survived   dmg taken   dmg/s   Zakum kill (n)    mesos/run   level   revived');
+console.log('class      shop   wins   survived   dmg taken   dmg/s   The Gloam kill (n)    mesos/run   level   revived');
 for (const c of classes) {
   const seedList = Array.from({ length: seeds }, (_, i) => (i + 1) * 7919);
   const a = seedList.map((s) => play(s, c.key, none));

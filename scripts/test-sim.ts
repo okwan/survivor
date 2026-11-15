@@ -23,7 +23,7 @@ eq(armorReduction(0), 0, 'no armor, no reduction'); near(armorReduction(ARMOR_K)
 ok(armorReduction(20) < armorReduction(40) && armorReduction(40) - armorReduction(20) > armorReduction(80) - armorReduction(60), 'armor has diminishing returns');
 eq(armorReduction(1e6), ARMOR_CAP, 'reduction is capped'); near(mitigated(100, 20), 100 * (1 - 20 / 60), 1e-9, 'percent mitigation'); eq(mitigated(1, 1e6), 1, 'a hit never lands below 1');
 eq(aliveTarget(0), 24, 'alive target @0'); eq(aliveTarget(450), 204, 'alive target @450'); eq(aliveTarget(900), 280, 'alive target @900 capped');
-eq(LADDER[11].hp, 70, 'peak hp: Octopus reads Dark Stump peak');
+eq(LADDER[11].hp, 70, 'peak hp: Bramble Crab reads Cave Spider peak');
 
 const lvlTimes: Record<string, number> = {};
 function run(label: string, god: boolean, seed: number, cls = 'magician') {
@@ -349,7 +349,7 @@ console.log('-- mob speeds');
   s.god = true;
   const seen: Record<number, number> = {};
   for (let i = 0; i < 60 * 12; i++) { s.tick(); for (const e of s.enemies) if (e.boss < 0 && !e.add) seen[e.tier] = e.speed; if (seen[0] !== undefined && seen[1] !== undefined && seen[2] !== undefined) break; }
-  near0(seen[0], BASE_ENEMY_SPEED * 0.3, 'Snail speed comes from the table');
+  near0(seen[0], BASE_ENEMY_SPEED * 0.3, 'Cellar Rat speed comes from the table');
   near0(seen[1], ENEMY_SPEED_CAP * CLASS_BY_KEY.warrior.speed, 'a too-fast mob is clamped below the hero speed');
   eq(seen[2], LADDER[2].speed, 'a mob missing from the table keeps its hand-tuned speed');
   const d = new Sim(5, 'warrior');

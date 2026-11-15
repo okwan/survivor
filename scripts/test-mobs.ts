@@ -25,7 +25,7 @@ const eq = (a: unknown, b: unknown, m: string) => { checks++; assert.deepEqual(a
 const near = (a: number, b: number, tol: number, m: string) => { checks++; assert.ok(Math.abs(a - b) <= tol, `${m} (got ${a}, want ${b} +- ${tol})`); };
 
 const tier = (name: string) => LADDER.findIndex((d) => d.name === name);
-const LUPIN = tier('Lupin'), CURSE_EYE = tier('Curse Eye'), WRAITH = tier('Wraith'), EVIL_EYE = tier('Evil Eye'), PIG = tier('Pig'), SNAIL = tier('Snail');
+const LUPIN = tier('Hex Witch'), CURSE_EYE = tier('Blood Bat'), WRAITH = tier('Wraith'), EVIL_EYE = tier('Dusk Bat'), PIG = tier('Hog'), SNAIL = tier('Cellar Rat');
 
 /** a hero that cannot attack, standing still, so only what a test sets up happens (not immortal unless `god`) */
 function quiet(seed = 1, cls = 'magician', opts: { mobAi?: boolean; god?: boolean } = {}) {
@@ -58,20 +58,20 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
 // ---- tables ----
 {
   const by = (b: string) => LADDER.filter((d) => d.behave === b).map((d) => d.name);
-  eq(by('ranged'), ['Evil Eye', 'Curse Eye', 'Jr. Boogie', 'Lupin', 'Wraith'], 'ranged tiers: Evil Eye, Curse Eye, Jr. Boogie, Lupin, Wraith');
-  eq(by('charge'), ['Pig', 'Ribbon Pig', 'Axe Stump', 'Wild Boar', 'Fire Boar'], 'charge tiers: Pig, Ribbon Pig, Axe Stump, Wild Boar, Fire Boar');
+  eq(by('ranged'), ['Dusk Bat', 'Blood Bat', 'Wisp', 'Hex Witch', 'Wraith'], 'ranged tiers: Dusk Bat, Blood Bat, Wisp, Hex Witch, Wraith');
+  eq(by('charge'), ['Hog', 'Gilded Hog', 'Berserker', 'Cyclops', 'Ember Cyclops'], 'charge tiers: Hog, Gilded Hog, Berserker, Cyclops, Ember Cyclops');
   ok(LADDER.length - by('ranged').length - by('charge').length === 20, 'the other twenty tiers walk');
-  eq(LADDER.filter((d) => d.fly).map((d) => d.name), ['Evil Eye', 'Curse Eye', 'Jr. Boogie', 'Wraith'], 'flyers: the eyes, Jr. Boogie and Wraith');
-  eq(LADDER.filter((d) => d.shotAil).map((d) => [d.name, d.shotAil]), [['Curse Eye', AIL_DARKNESS], ['Wraith', AIL_CURSE]], 'Curse Eye shoots Darkness, Wraith Curse');
-  eq(BOSSES.map((b) => b.ailments), [[AIL_WEAKNESS], [AIL_POISON], [AIL_WEAKNESS], [AIL_CURSE], [AIL_SEAL], [AIL_DARKNESS, AIL_SEAL]], 'boss ailments: Mano Weakness, Mushmom Poison, King Slime Weakness, Zombie Mushmom Curse, Jr. Balrog Seal, Zakum Darkness + Seal');
+  eq(LADDER.filter((d) => d.fly).map((d) => d.name), ['Dusk Bat', 'Blood Bat', 'Wisp', 'Wraith'], 'flyers: the eyes, Wisp and Wraith');
+  eq(LADDER.filter((d) => d.shotAil).map((d) => [d.name, d.shotAil]), [['Blood Bat', AIL_DARKNESS], ['Wraith', AIL_CURSE]], 'Blood Bat shoots Darkness, Wraith Curse');
+  eq(BOSSES.map((b) => b.ailments), [[AIL_WEAKNESS], [AIL_POISON], [AIL_WEAKNESS], [AIL_CURSE], [AIL_SEAL], [AIL_DARKNESS, AIL_SEAL]], 'boss ailments: The Rat King Weakness, Mother Slime Poison, Old One-Eye Weakness, The Weaver Curse, The Lantern Witch Seal, The Gloam Darkness + Seal');
   eq(AILMENTS.map((a) => a.seconds), [3, 5, 4, 8, 5], 'durations: Seal 3, Darkness 5, Weakness 4, Curse 8, Poison 5');
   eq(AILMENTS.map((a) => a.id), [AIL_SEAL, AIL_DARKNESS, AIL_WEAKNESS, AIL_CURSE, AIL_POISON], 'ailment ids line up with their table');
   eq(new Set(AILMENTS.map((a) => a.color)).size, 5, 'each ailment has its own colour');
   ok(SHOT_SPEED_MIN === 8 && SHOT_SPEED_MAX === 10 && SHOT_LIFE === 2 && MAX_SHOOTERS === 25 && AIL_EVERY === 16 && AIL_CAST === 1.2, 'the constants of the brief');
   const e = (() => { const s = quiet(); return mob(s, LUPIN, 30, 0); })();
-  eq([e.behave, e.fly], [BEH_RANGED, false], 'a Lupin spawns as a ranged ground mob');
+  eq([e.behave, e.fly], [BEH_RANGED, false], 'a Hex Witch spawns as a ranged ground mob');
   const e2 = (() => { const s = quiet(); return mob(s, PIG, 30, 0); })();
-  eq([e2.behave, e2.fly], [BEH_CHARGE, false], 'a Pig spawns as a charger');
+  eq([e2.behave, e2.fly], [BEH_CHARGE, false], 'a Hog spawns as a charger');
   const e3 = (() => { const s = quiet(); return mob(s, WRAITH, 30, 0); })();
   eq([e3.behave, e3.fly], [BEH_RANGED, true], 'a Wraith spawns as a ranged flyer');
   const e4 = (() => { const s = quiet(undefined, undefined, { mobAi: false }); return mob(s, WRAITH, 30, 0); })();
@@ -98,7 +98,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     }
     for (const ev of s.events) if (ev.type === 'playerHit') hurts.push(ev.amount);
   });
-  ok(e.shooter && s.mobs.shooters === 1, 'the Lupin became a shooter');
+  ok(e.shooter && s.mobs.shooters === 1, 'the Hex Witch became a shooter');
   const d = dist(s, e);
   ok(d <= e.bd && d >= e.bd - 0.2 && e.bd >= RANGED_STOP_MIN && e.bd <= RANGED_STOP_MAX, `it stopped ${d.toFixed(2)} yd away (stop distance ${e.bd.toFixed(2)}, between 9 and 12)`);
   ok(!e.moving, 'a shooter at range stands still');
@@ -164,7 +164,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     es.push(e);
   }
   run(s, 1);
-  eq(s.mobs.shooters, MAX_SHOOTERS, 'with 40 Lupins around, exactly 25 are shooters');
+  eq(s.mobs.shooters, MAX_SHOOTERS, 'with 40 Hex Witches around, exactly 25 are shooters');
   eq(es.filter((e) => e.shooter).length, MAX_SHOOTERS, 'and the flags agree');
   run(s, 8);
   eq(es.filter((e) => e.shooter).length, MAX_SHOOTERS, 'still 25 after 9 s (the others never join)');
@@ -177,7 +177,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   const far = quiet();
   const w = mob(far, LUPIN, RANGED_ADMIT + 8, 0);
   run(far, 0.5);
-  ok(!w.shooter && w.moving, 'a Lupin 34 yd away walks in and is not a shooter yet');
+  ok(!w.shooter && w.moving, 'a Hex Witch 34 yd away walks in and is not a shooter yet');
   ok(RANGED_FIRE > RANGED_STOP_MAX, 'shooters fire from where they stand');
 }
 
@@ -202,7 +202,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     // after the first dash the hero keeps 10 yd away so the cooldown is the only thing in the way of the next rush
     if (dashEnd) { s.px = p.x + 10; s.py = p.y; }
   });
-  ok(tele !== null && dashStart !== null && dashEnd !== null, 'the Pig telegraphed, dashed and rested');
+  ok(tele !== null && dashStart !== null && dashEnd !== null, 'the Hog telegraphed, dashed and rested');
   eq(marks.slice(0, 3).map((m) => m.st), [CHARGE_TELEGRAPH, CHARGE_DASH, CHARGE_IDLE], 'telegraph, dash, idle in order');
   near(marks[1].t - marks[0].t, CHARGE_TELEGRAPH_TIME, 0.03, 'the telegraph lasts 0.6 s');
   near(marks[2].t - marks[1].t, CHARGE_DASH_TIME, 0.03, 'the dash lasts 0.7 s');
@@ -220,7 +220,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   const near5 = mob(s, PIG, 5, 0), far13 = mob(s, PIG, 13, 0);
   near5.bT = far13.bT = 0; near5.speed = far13.speed = 0; near5.dmg = far13.dmg = 0; near5.hitCd = far13.hitCd = 1e9;
   run(s, 0.5);
-  eq([near5.bS, far13.bS], [CHARGE_IDLE, CHARGE_IDLE], 'a Pig 5 yd away or 13 yd away does not rush');
+  eq([near5.bS, far13.bS], [CHARGE_IDLE, CHARGE_IDLE], 'a Hog 5 yd away or 13 yd away does not rush');
   far13.x = s.px + 12; near5.x = s.px + 6.5;
   run(s, 0.1);
   eq([near5.bS, far13.bS], [CHARGE_TELEGRAPH, CHARGE_TELEGRAPH], 'within 6 to 12 yd it does');
@@ -272,7 +272,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   c.bd = 0;
   run(s, 0.5);
   ok(Math.abs(a.x - b.x) > 0.3, 'two snails on top of each other are pushed apart');
-  near(Math.abs(c.x - d.x), 0.05, 1e-6, 'two Evil Eyes are not (flyers ignore the crowding)');
+  near(Math.abs(c.x - d.x), 0.05, 1e-6, 'two Dusk Bats are not (flyers ignore the crowding)');
 }
 
 // ---- Elites keep the behaviour of their tier; event mobs and bosses ignore behaviours ----
@@ -281,12 +281,12 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   s.elites.pending = true;
   const e = mob(s, LUPIN, 20, 0);
   maybePromote(s, e);
-  ok(e.elite > 0 && e.behave === BEH_RANGED, 'a promoted Lupin is still ranged');
+  ok(e.elite > 0 && e.behave === BEH_RANGED, 'a promoted Hex Witch is still ranged');
   run(s, 5);
   ok(e.shooter && s.mobs.fired >= 1, 'and the Elite shoots');
 }
 {
-  // top tiers include ranged mobs; a ring of them at 18 yd must not shoot, and treasure Ribbon Pigs (a charge tier) must not rush
+  // top tiers include ranged mobs; a ring of them at 18 yd must not shoot, and treasure Gilded Hogs (a charge tier) must not rush
   const s = quiet();
   s.t = 730; s.bossesSpawned = 6;
   startSwarm(s, 'ring');
@@ -299,7 +299,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   const t = quiet();
   startSwarm(t, 'treasure');
   const pigs = t.enemies.filter((e) => e.ev === EV_TREASURE);
-  ok(pigs.length === 12 && pigs.every((e) => e.behave === BEH_CHARGE), 'treasure pigs are Ribbon Pigs');
+  ok(pigs.length === 12 && pigs.every((e) => e.behave === BEH_CHARGE), 'treasure pigs are Gilded Hogs');
   run(t, 5);
   eq(t.mobs.charges, 0, 'treasure pigs never rush');
   const u = quiet();
@@ -470,7 +470,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   ok(!cureAilments(s), 'curing with nothing to cure says so');
 }
 
-// ---- Curse Eye / Wraith shots carry their ailment about 25% of the time; others never ----
+// ---- Blood Bat / Wraith shots carry their ailment about 25% of the time; others never ----
 {
   const sample = (t: number) => {
     const s = quiet();
@@ -482,7 +482,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     });
     return { n, withAil, kind };
   };
-  for (const [t, ail, name] of [[CURSE_EYE, AIL_DARKNESS, 'Curse Eye'], [WRAITH, AIL_CURSE, 'Wraith']] as const) {
+  for (const [t, ail, name] of [[CURSE_EYE, AIL_DARKNESS, 'Blood Bat'], [WRAITH, AIL_CURSE, 'Wraith']] as const) {
     const r = sample(t);
     ok(r.n > 500, `${r.n} ${name} shots sampled`);
     near(r.withAil / r.n, MOB_SHOT_AIL_CHANCE, 0.05, `${name} shots carry an ailment 25% of the time`);
@@ -512,7 +512,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   s.px = 0; s.py = 0;
   run(s, 0.1);
   const mano = s.activeBoss()!;
-  eq(BOSSES[mano.boss].name, 'Mano', 'Mano is the first boss');
+  eq(BOSSES[mano.boss].name, 'The Rat King', 'The Rat King is the first boss');
   mano.x = 3; mano.y = 0; // right next to the hero
   mano.novaT = 1e9; // only the ailment is of interest here
   near(mano.ailT, AIL_EVERY, 0.2, 'its ailment timer starts at 16 s');
@@ -526,7 +526,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     if (cast0 < 0 && mano.ailC > 0) { cast0 = s.t; mano.x = 3; mano.y = 0; }
     mano.x = 3; mano.y = 0; // it would walk up; keep the geometry simple (it stops to cast anyway)
   });
-  ok(raids.includes('Mano casts Weakness!'), 'raid warning: "Mano casts Weakness!"');
+  ok(raids.includes('The Rat King casts Weakness!'), 'raid warning: "The Rat King casts Weakness!"');
   ok(cast0 - BOSS_EVERY >= 15.9 && cast0 - BOSS_EVERY <= 16.3, `the cast started ${(cast0 - BOSS_EVERY).toFixed(2)} s after the boss appeared`);
   ok(hit !== null && (hit as Extract<SimEvent, { type: 'ailHit' }>).hit && (hit as Extract<SimEvent, { type: 'ailHit' }>).r === AIL_RADIUS, 'the circle landed with the hero inside');
   ok(s.ail.weak, 'the hero is weakened');
@@ -559,26 +559,26 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   ok(m3.ailC === 0 && m3.ailT > AIL_EVERY - 1 && m3.ailT <= AIL_EVERY, 'the next cast is 16 s after the last one lands');
 }
 {
-  // Zakum brings Darkness and Seal; each boss lands its own
+  // The Gloam brings Darkness and Seal; each boss lands its own
   const s = quiet();
   s.t = BOSS_EVERY * 6 - 0.01;
   s.bossesSpawned = 5;
   s.px = 0; s.py = 0;
   run(s, 0.1);
   const bosses = s.enemies.filter((e) => e.boss >= 0);
-  eq(bosses.map((b) => BOSSES[b.boss].name).sort(), ['Jr. Balrog', 'Zakum', 'Zombie Mushmom'], 'a Zakum wave: Zakum, Jr. Balrog, Zombie Mushmom');
+  eq(bosses.map((b) => BOSSES[b.boss].name).sort(), ['The Gloam', 'The Lantern Witch', 'The Weaver'], 'a Gloam wave: The Gloam, The Lantern Witch, The Weaver');
   for (const b of bosses) { b.novaT = 1e9; b.summonT = 1e9; b.speed = 0; b.x = 0; b.y = 0; b.ailT = b.boss === 5 ? 0.01 : 1e9; }
   const raids: string[] = [];
   run(s, 2, () => { for (const e of s.events) if (e.type === 'raid') raids.push(e.text); });
-  ok(raids.includes('Zakum casts Darkness and Seal!'), 'raid warning: "Zakum casts Darkness and Seal!"');
-  ok(s.ail.dark && s.ail.seal && s.ail.count === 2, 'Zakum lands Darkness and Seal together');
+  ok(raids.includes('The Gloam casts Darkness and Seal!'), 'raid warning: "The Gloam casts Darkness and Seal!"');
+  ok(s.ail.dark && s.ail.seal && s.ail.count === 2, 'The Gloam lands Darkness and Seal together');
   const t = quiet();
   t.t = BOSS_EVERY * 5 - 0.01;
   t.bossesSpawned = 4;
   run(t, 0.1);
   for (const b of t.enemies.filter((e) => e.boss >= 0)) { b.novaT = 1e9; b.summonT = 1e9; b.speed = 0; b.x = 0; b.y = 0; b.ailT = b.boss === 4 ? 0.01 : 1e9; }
   run(t, 2);
-  ok(t.ail.seal && t.ail.count === 1, 'Jr. Balrog lands Seal');
+  ok(t.ail.seal && t.ail.count === 1, 'The Lantern Witch lands Seal');
   // the Ground Slam has priority: the ailment timer waits while it casts
   const u = quiet();
   u.t = BOSS_EVERY - 0.01;
@@ -637,7 +637,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   const fp = (seed: number) => {
     const s = new Sim(seed, 'warrior');
     s.god = true;
-    // minute 10:40, where the pool holds Curse Eyes, Fire Boars and Jr. Boogies: shots, ailments and charges all happen
+    // minute 10:40, where the pool holds Blood Bats, Fire Boars and Jr. Boogies: shots, ailments and charges all happen
     s.t = 640; s.bossesSpawned = 6;
     const log: string[] = [];
     const end = 700;

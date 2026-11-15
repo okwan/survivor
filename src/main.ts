@@ -1,4 +1,8 @@
+import '@fontsource/pixelify-sans/400.css';
+import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
+import './ui/create.css';
+import './ui/storybook.css';
 import { Application } from 'pixi.js';
 import { botInput, botPick } from './game/bot.ts';
 import { CLASS_BY_KEY, DEFAULT_CLASS, DIFFICULTIES, RUN_LENGTH, TICK } from './game/data.ts';
@@ -10,6 +14,7 @@ import { GearPool } from './game/gear.ts';
 import { GearIcons } from './render/gear-icons.ts';
 import { GearUi } from './ui/gear.ts';
 import { Renderer } from './render/renderer.ts';
+import { loadSprites } from './render/sprites.ts';
 import { CreateScreen, DEFAULT_NAME } from './ui/create.ts';
 import type { CreateResult } from './ui/create.ts';
 import { MapBanner } from './ui/banner.ts';
@@ -54,7 +59,7 @@ async function boot() {
   const app = new Application();
   await app.init({
     resizeTo: window,
-    background: 0x4f9a3c,
+    background: 0x1d2233,
     antialias: false,
     resolution: Math.min(isTouch() ? 1.5 : 2, window.devicePixelRatio || 1),
     autoDensity: true,
@@ -70,7 +75,9 @@ async function boot() {
   await gearIcons.load();
   console.info(`gear: ${gearPool.items.size} items`);
   applyUiTheme(art?.ui ?? null);
-  const renderer = new Renderer(app, art);
+  loading.stage('Loading sprites', 0.06, 0.7);
+  const sprites = await loadSprites();
+  const renderer = new Renderer(app, art, sprites);
   app.renderer.on('resize', () => renderer.resize());
   renderer.setGearIcons(gearIcons);
 

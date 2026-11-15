@@ -2,10 +2,10 @@
  * Swarm events (Vampire Survivors map events): every 100 to 140 s, and never within 15 s of a boss spawn, one of three things happens
  * (seeded, own random stream so the run's other draws never shift). The mobs are added on top of the alive target and carry an `ev`
  * mark, so the spawner does not count them and the recycler leaves them alone:
- * - Snail Stampede: a 30 to 50 strong column enters from one screen edge, marches straight across at 1.6x speed ignoring the hero, and
+ * - Rat Stampede: a 30 to 50 strong column enters from one screen edge, marches straight across at 1.6x speed ignoring the hero, and
  *   is removed (no loot, no kill) once past the far edge.
  * - Closing Ring: 40 mobs of the current top tier appear in a full ring at 18 yd around the hero and walk inward like any mob.
- * - Treasure Swarm: 12 fast Ribbon Pigs run away from the hero for 20 s, then vanish; each drops 5x mesos, and every 4th one a field item.
+ * - Treasure Swarm: 12 fast Gilded Hogs run away from the hero for 20 s, then vanish; each drops 5x mesos, and every 4th one a field item.
  * Pure (no DOM).
  */
 import { BOSS_EVERY, RECYCLE_DIST, mesoValue, poolLo } from './data.ts';
@@ -47,15 +47,15 @@ export const TREASURE_COUNT = 12;
 export const TREASURE_TIER = 8;
 export const TREASURE_SECONDS = 20;
 export const TREASURE_MESO_MULT = 5;
-/** only every 4th Treasure Pig killed (the first included) drops a field item, so a swarm is not a flood of them */
+/** only every 4th Treasure Hog killed (the first included) drops a field item, so a swarm is not a flood of them */
 export const TREASURE_FIELD_EVERY = 4;
 /** pig speed as a fraction of the hero's base speed (the hero is a little faster, so a chase is slow) */
 export const TREASURE_SPEED = 0.88;
 
 export const SWARM_BANNERS: Record<SwarmKind, string> = {
-  stampede: 'Snail stampede!',
+  stampede: 'Rat stampede!',
   ring: 'You are surrounded!',
-  treasure: 'Treasure Pigs! Catch them!',
+  treasure: 'Treasure Hogs! Catch them!',
 };
 
 export class Swarms {
@@ -63,7 +63,7 @@ export class Swarms {
   nextAt: number;
   /** events started so far, by kind index in SWARM_KINDS */
   started = [0, 0, 0];
-  /** Treasure Pigs killed so far this run */
+  /** Treasure Hogs killed so far this run */
   pigsKilled = 0;
   /** anti-camping: own random stream, the spot the hero is holding, seconds held, when the next camp ring is due, rings sent this spell */
   campRng: Rng;
@@ -120,7 +120,7 @@ export function startSwarm(sim: Sim, kind: SwarmKind) {
   const lo = poolLo(sim.t);
   if (kind === 'stampede') {
     const n = STAMPEDE_MIN + rng.int(STAMPEDE_MAX - STAMPEDE_MIN + 1);
-    // Blue / Red Snails while the ladder is low, else the current low tier
+    // Blue / Sewer Rats while the ladder is low, else the current low tier
     const tier = lo < 8 ? (rng.next() < 0.5 ? 1 : 3) : lo;
     const dir = rng.int(4);
     const vx = dir === 0 ? 1 : dir === 1 ? -1 : 0, vy = dir === 2 ? 1 : dir === 3 ? -1 : 0;
@@ -200,7 +200,7 @@ export function eventStep(e: Enemy, dx: number, dy: number, inv: number, stepLen
   else if (mx < -0.15) e.facing = -1;
 }
 
-/** A Treasure Pig was killed: 5x the coin, and a field item from every TREASURE_FIELD_EVERY-th pig */
+/** A Treasure Hog was killed: 5x the coin, and a field item from every TREASURE_FIELD_EVERY-th pig */
 export function treasureKilled(sim: Sim, e: Enemy) {
   sim.dropPickup(MESO, e.x, e.y, mesoValue(e.tier) * TREASURE_MESO_MULT);
   if (sim.swarms.pigsKilled++ % TREASURE_FIELD_EVERY === 0) dropField(sim, e.x, e.y + 0.6);

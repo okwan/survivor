@@ -21,6 +21,9 @@ export interface CreateOptions {
 
 export const DEFAULT_NAME = 'Wanderer';
 
+/** the class portrait (public/sprites, the same sprites the hero uses in a run) */
+const HERO_SPRITES: Record<string, string> = { warrior: 'td_0096', magician: 'td_0084', bowman: 'td_0112', thief: 'td_0088', pirate: 'td_0087' };
+
 /** the name as the game stores it */
 export const sanitizeName = (n: string) => n.replace(/[<>&"]/g, '').trim().slice(0, 12);
 
@@ -96,7 +99,11 @@ export class CreateScreen {
     const icon = el('img', 'class-skill');
     icon.alt = '';
     icon.dataset.skill = c.skills[0];
+    const hero = el('img', 'class-hero');
+    hero.alt = '';
+    hero.src = `sprites/${HERO_SPRITES[c.key] ?? 'td_0084'}.png`;
     card.append(
+      hero,
       el('h3', 'class-name', c.name),
       el('p', 'class-blurb', c.blurb),
       el('div', 'class-weapon', `${c.weaponName}`),

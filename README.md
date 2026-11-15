@@ -43,6 +43,16 @@ Still to replace in the content pass, before anything is published:
   and mob ids they carry, and item / scroll / gear names and stats.
 - The balance numbers, which were taken from another fan game (Azeroth Survivors); retune them with the balance
   probes against our own targets.
-- The placeholder art drawn in `src/render/textures.ts` (snails, mushrooms and similar mob shapes) and the CSS skin.
+- Monster and boss names are original now; their numeric ids (keys for the bestiary and saves) still come from the old data.
 
 Art and audio must be our own or carry a license that allows commercial use; record each source here when added.
+
+## Credits and licenses
+
+- **Sprites:** Kenney's *Tiny Dungeon* and *Tiny Town* packs, by Kenney (www.kenney.nl), CC0 1.0 (public domain, commercial
+  use allowed). Files in `public/sprites/`, license in `public/sprites/LICENSE.txt`. Taken from the
+  `shorepine/kenney` mirror of the Kenney library.
+- **Font:** Pixelify Sans by Stefie Justprince, SIL Open Font License 1.1, via `@fontsource/pixelify-sans`.
+
+These are a strong starting point, not the final look: a Steam release should commission or buy a consistent,
+larger sprite set (heroes with walk and attack animations, bosses, effects) in the same style.
