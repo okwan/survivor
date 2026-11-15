@@ -15,6 +15,7 @@ import { GearIcons } from './render/gear-icons.ts';
 import { GearUi } from './ui/gear.ts';
 import { Renderer } from './render/renderer.ts';
 import { loadSprites } from './render/sprites.ts';
+import { loadBaked } from './render/baked.ts';
 import { CreateScreen, DEFAULT_NAME } from './ui/create.ts';
 import type { CreateResult } from './ui/create.ts';
 import { MapBanner } from './ui/banner.ts';
@@ -75,9 +76,12 @@ async function boot() {
   await gearIcons.load();
   console.info(`gear: ${gearPool.items.size} items`);
   applyUiTheme(art?.ui ?? null);
-  loading.stage('Loading sprites', 0.06, 0.7);
+  loading.stage('Loading sprites', 0.06, 0.3);
   const sprites = await loadSprites();
-  const renderer = new Renderer(app, art, sprites);
+  loading.stage('Loading the world', 0.3, 0.7);
+  const baked = await loadBaked('baked/', (k) => loading.progress(k));
+  if (!baked) console.warn('baked art missing: using flat sprites');
+  const renderer = new Renderer(app, art, sprites, baked);
   app.renderer.on('resize', () => renderer.resize());
   renderer.setGearIcons(gearIcons);
 

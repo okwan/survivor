@@ -141,7 +141,7 @@ const mk = (pct: number): ScrollDef => ({ id: 't', name: `Scroll for One-Handed 
   s.enemies.push(e);
   s.hit(e, 1e6);
   eq(s.book['100100'], 1, 'a kill is counted by mob id');
-  ok(s.notes.some((n) => n.text === 'New card: Cellar Rat'), 'new card toast');
+  ok(s.notes.some((n) => n.text === 'New card: Crawler'), 'new card toast');
   eq(mergeBook({ '1': 3, '2': 1 }, { '1': 2, '3': 4 }), { '1': 3, '2': 1, '3': 4 }, 'merge keeps the larger count');
   eq(sanitizeBook({ '100100': 7.9, x: 3, '5': -1, '6': 'a' }), { '100100': 7 }, 'junk entries are dropped');
   // save round trip (a fake localStorage)

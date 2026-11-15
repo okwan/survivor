@@ -108,7 +108,7 @@ export class Elites {
   }
 }
 
-/** "Elite Ember Slime" */
+/** "Elite Ember Shambler" */
 export function eliteTitle(e: { tier: number }): string {
   return `Elite ${LADDER[e.tier].name}`;
 }

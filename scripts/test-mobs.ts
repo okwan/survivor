@@ -25,7 +25,7 @@ const eq = (a: unknown, b: unknown, m: string) => { checks++; assert.deepEqual(a
 const near = (a: number, b: number, tol: number, m: string) => { checks++; assert.ok(Math.abs(a - b) <= tol, `${m} (got ${a}, want ${b} +- ${tol})`); };
 
 const tier = (name: string) => LADDER.findIndex((d) => d.name === name);
-const LUPIN = tier('Hex Witch'), CURSE_EYE = tier('Blood Bat'), WRAITH = tier('Wraith'), EVIL_EYE = tier('Dusk Bat'), PIG = tier('Hog'), SNAIL = tier('Cellar Rat');
+const LUPIN = tier('Hex Witch'), CURSE_EYE = tier('Blood Wisp'), WRAITH = tier('Wraith'), EVIL_EYE = tier('Dusk Wisp'), PIG = tier('Brute'), SNAIL = tier('Crawler');
 
 /** a hero that cannot attack, standing still, so only what a test sets up happens (not immortal unless `god`) */
 function quiet(seed = 1, cls = 'magician', opts: { mobAi?: boolean; god?: boolean } = {}) {
@@ -58,12 +58,12 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
 // ---- tables ----
 {
   const by = (b: string) => LADDER.filter((d) => d.behave === b).map((d) => d.name);
-  eq(by('ranged'), ['Dusk Bat', 'Blood Bat', 'Wisp', 'Hex Witch', 'Wraith'], 'ranged tiers: Dusk Bat, Blood Bat, Wisp, Hex Witch, Wraith');
-  eq(by('charge'), ['Hog', 'Gilded Hog', 'Berserker', 'Cyclops', 'Ember Cyclops'], 'charge tiers: Hog, Gilded Hog, Berserker, Cyclops, Ember Cyclops');
+  eq(by('ranged'), ['Dusk Wisp', 'Blood Wisp', 'Wisp', 'Hex Witch', 'Wraith'], 'ranged tiers: Dusk Wisp, Blood Wisp, Wisp, Hex Witch, Wraith');
+  eq(by('charge'), ['Brute', 'Gilded Brute', 'Berserker', 'Gloom Ogre', 'Ember Ogre'], 'charge tiers: Hog, Gilded Brute, Berserker, Gloom Ogre, Ember Ogre');
   ok(LADDER.length - by('ranged').length - by('charge').length === 20, 'the other twenty tiers walk');
-  eq(LADDER.filter((d) => d.fly).map((d) => d.name), ['Dusk Bat', 'Blood Bat', 'Wisp', 'Wraith'], 'flyers: the eyes, Wisp and Wraith');
-  eq(LADDER.filter((d) => d.shotAil).map((d) => [d.name, d.shotAil]), [['Blood Bat', AIL_DARKNESS], ['Wraith', AIL_CURSE]], 'Blood Bat shoots Darkness, Wraith Curse');
-  eq(BOSSES.map((b) => b.ailments), [[AIL_WEAKNESS], [AIL_POISON], [AIL_WEAKNESS], [AIL_CURSE], [AIL_SEAL], [AIL_DARKNESS, AIL_SEAL]], 'boss ailments: The Rat King Weakness, Mother Slime Poison, Old One-Eye Weakness, The Weaver Curse, The Lantern Witch Seal, The Gloam Darkness + Seal');
+  eq(LADDER.filter((d) => d.fly).map((d) => d.name), ['Dusk Wisp', 'Blood Wisp', 'Wisp', 'Wraith'], 'flyers: the eyes, Wisp and Wraith');
+  eq(LADDER.filter((d) => d.shotAil).map((d) => [d.name, d.shotAil]), [['Blood Wisp', AIL_DARKNESS], ['Wraith', AIL_CURSE]], 'Blood Wisp shoots Darkness, Wraith Curse');
+  eq(BOSSES.map((b) => b.ailments), [[AIL_WEAKNESS], [AIL_POISON], [AIL_WEAKNESS], [AIL_CURSE], [AIL_SEAL], [AIL_DARKNESS, AIL_SEAL]], 'boss ailments: The Gravedigger Weakness, The Rotting King Poison, Old Bonejaw Weakness, The Count Curse, The Lantern Witch Seal, The Gloam Darkness + Seal');
   eq(AILMENTS.map((a) => a.seconds), [3, 5, 4, 8, 5], 'durations: Seal 3, Darkness 5, Weakness 4, Curse 8, Poison 5');
   eq(AILMENTS.map((a) => a.id), [AIL_SEAL, AIL_DARKNESS, AIL_WEAKNESS, AIL_CURSE, AIL_POISON], 'ailment ids line up with their table');
   eq(new Set(AILMENTS.map((a) => a.color)).size, 5, 'each ailment has its own colour');
@@ -470,7 +470,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   ok(!cureAilments(s), 'curing with nothing to cure says so');
 }
 
-// ---- Blood Bat / Wraith shots carry their ailment about 25% of the time; others never ----
+// ---- Blood Wisp / Wraith shots carry their ailment about 25% of the time; others never ----
 {
   const sample = (t: number) => {
     const s = quiet();
@@ -482,7 +482,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     });
     return { n, withAil, kind };
   };
-  for (const [t, ail, name] of [[CURSE_EYE, AIL_DARKNESS, 'Blood Bat'], [WRAITH, AIL_CURSE, 'Wraith']] as const) {
+  for (const [t, ail, name] of [[CURSE_EYE, AIL_DARKNESS, 'Blood Wisp'], [WRAITH, AIL_CURSE, 'Wraith']] as const) {
     const r = sample(t);
     ok(r.n > 500, `${r.n} ${name} shots sampled`);
     near(r.withAil / r.n, MOB_SHOT_AIL_CHANCE, 0.05, `${name} shots carry an ailment 25% of the time`);
@@ -512,7 +512,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   s.px = 0; s.py = 0;
   run(s, 0.1);
   const mano = s.activeBoss()!;
-  eq(BOSSES[mano.boss].name, 'The Rat King', 'The Rat King is the first boss');
+  eq(BOSSES[mano.boss].name, 'The Gravedigger', 'The Gravedigger is the first boss');
   mano.x = 3; mano.y = 0; // right next to the hero
   mano.novaT = 1e9; // only the ailment is of interest here
   near(mano.ailT, AIL_EVERY, 0.2, 'its ailment timer starts at 16 s');
@@ -526,7 +526,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
     if (cast0 < 0 && mano.ailC > 0) { cast0 = s.t; mano.x = 3; mano.y = 0; }
     mano.x = 3; mano.y = 0; // it would walk up; keep the geometry simple (it stops to cast anyway)
   });
-  ok(raids.includes('The Rat King casts Weakness!'), 'raid warning: "The Rat King casts Weakness!"');
+  ok(raids.includes('The Gravedigger casts Weakness!'), 'raid warning: "The Gravedigger casts Weakness!"');
   ok(cast0 - BOSS_EVERY >= 15.9 && cast0 - BOSS_EVERY <= 16.3, `the cast started ${(cast0 - BOSS_EVERY).toFixed(2)} s after the boss appeared`);
   ok(hit !== null && (hit as Extract<SimEvent, { type: 'ailHit' }>).hit && (hit as Extract<SimEvent, { type: 'ailHit' }>).r === AIL_RADIUS, 'the circle landed with the hero inside');
   ok(s.ail.weak, 'the hero is weakened');
@@ -566,7 +566,7 @@ const dummy = (s: Sim, x: number, y: number, hp = 1e9) => {
   s.px = 0; s.py = 0;
   run(s, 0.1);
   const bosses = s.enemies.filter((e) => e.boss >= 0);
-  eq(bosses.map((b) => BOSSES[b.boss].name).sort(), ['The Gloam', 'The Lantern Witch', 'The Weaver'], 'a Gloam wave: The Gloam, The Lantern Witch, The Weaver');
+  eq(bosses.map((b) => BOSSES[b.boss].name).sort(), ['The Count', 'The Gloam', 'The Lantern Witch'], 'a Gloam wave: The Gloam, The Lantern Witch, The Count');
   for (const b of bosses) { b.novaT = 1e9; b.summonT = 1e9; b.speed = 0; b.x = 0; b.y = 0; b.ailT = b.boss === 5 ? 0.01 : 1e9; }
   const raids: string[] = [];
   run(s, 2, () => { for (const e of s.events) if (e.type === 'raid') raids.push(e.text); });

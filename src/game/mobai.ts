@@ -32,7 +32,7 @@ export const SHOT_FIRST_MAX = 1.4;
 export const SHOT_SPEED_MIN = 8;
 export const SHOT_SPEED_MAX = 10;
 export const SHOT_LIFE = 2;
-/** shot damage as a fraction of the mob's contact damage, shot radius in yd (the hero adds their own), chance a Blood Bat / Wraith shot carries its ailment */
+/** shot damage as a fraction of the mob's contact damage, shot radius in yd (the hero adds their own), chance a Blood Wisp / Wraith shot carries its ailment */
 export const SHOT_DMG = 1.0;
 export const SHOT_RADIUS = 0.9;
 export const MOB_SHOT_AIL_CHANCE = 0.25;
